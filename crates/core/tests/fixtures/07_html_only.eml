@@ -1,0 +1,12 @@
+Message-ID: <html-007@shop.example>
+Date: Wed, 15 Oct 2025 18:20:00 +0000
+From: Negozio <ordini@shop.example>
+To: marco@esempio.it
+Subject: Il tuo ordine 4815 e' stato spedito
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><head><script>alert('x')</script><style>p{color:red}</style></head>
+<body onload="steal()"><p style="font-weight:bold">Ordine <b>4815</b> spedito.</p>
+<p>Traccia la spedizione: <a href="https://shop.example/track/4815">qui</a></p>
+<img src="https://shop.example/pixel.png" width="1" height="1"></body></html>

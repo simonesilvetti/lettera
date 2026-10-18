@@ -1,0 +1,36 @@
+Message-ID: <att-008@esempio.it>
+Date: Thu, 16 Oct 2025 10:00:00 +0200
+From: Anna Rossi <anna@esempio.it>
+To: Marco Bianchi <marco@esempio.it>
+Subject: Fattura ottobre
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="mix"
+
+--mix
+Content-Type: text/plain; charset=utf-8
+
+In allegato la fattura.
+
+--mix
+Content-Type: application/pdf; name="fattura-ottobre.pdf"
+Content-Disposition: attachment; filename="fattura-ottobre.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAw
+IG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRv
+YmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8
+Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBE
+Ri0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9i
+ajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoK
+dHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4K
+JSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0x
+LjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8
+Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJh
+aWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVF
+T0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQK
+MSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5l
+bmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxl
+cjw8Pj4KJSVFT0YKJVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YK
+JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YK
+
+--mix--

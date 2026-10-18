@@ -1,0 +1,14 @@
+# Dovecot for the IMAP integration test:
+#   docker compose -f docker-compose.test.yml up -d
+#   LETTERA_IMAP_TEST=1 cargo test -p lettera-core --test dovecot
+services:
+  dovecot:
+    image: dovecot/dovecot:2.3-latest
+    ports:
+      - "127.0.0.1:10143:143"
+      - "127.0.0.1:10993:993"
+    volumes:
+      - ./crates/core/tests/dovecot/dovecot.conf:/etc/dovecot/dovecot.conf:ro
+      - ./crates/core/tests/dovecot:/etc/dovecot/lettera:ro
+    tmpfs:
+      - /srv/mail:uid=1000,gid=1000

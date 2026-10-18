@@ -1,0 +1,26 @@
+Message-ID: <fwd-012@esempio.it>
+Date: Fri, 17 Oct 2025 10:30:00 +0200
+From: Anna Rossi <anna@esempio.it>
+To: marco@esempio.it
+Subject: Fwd: Richiesta
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="fw"
+
+--fw
+Content-Type: text/plain; charset=utf-8
+
+Vedi sotto.
+
+--fw
+Content-Type: message/rfc822
+Content-Disposition: attachment
+
+Message-ID: <inner-012@esempio.it>
+Date: Fri, 17 Oct 2025 08:00:00 +0200
+From: Cliente <cliente@esempio.it>
+To: anna@esempio.it
+Subject: Richiesta
+
+Messaggio originale inoltrato come allegato.
+
+--fw--

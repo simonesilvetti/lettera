@@ -1,0 +1,23 @@
+Message-ID: <alt-006@newsletter.example>
+Date: Wed, 15 Oct 2025 07:45:00 +0000
+From: "Notizie" <news@newsletter.example>
+To: marco@esempio.it
+Subject: =?UTF-8?Q?Le_novit=C3=A0_della_settimana?=
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Le novit=C3=A0 della settimana in formato testo.
+Leggi online: https://newsletter.example/n/42
+
+--b1
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><h1>Le novit=C3=A0</h1><p>Testo <a href=3D"https://newsletter.exam=
+ple/n/42">online</a></p><img src=3D"https://track.example/p.gif"></body></html>
+
+--b1--
