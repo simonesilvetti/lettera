@@ -1,6 +1,8 @@
-# Dovecot for the IMAP integration test:
+# Servers for the integration tests (test-only certificate in crates/core/tests/dovecot):
 #   docker compose -f docker-compose.test.yml up -d
 #   LETTERA_IMAP_TEST=1 cargo test -p lettera-core --test dovecot
+# Dovecot: any user, password "pass" (IMAPS 10993, STARTTLS 10143).
+# Mailpit: SMTP with STARTTLS on 10587 (any credentials), web UI on 18025.
 services:
   dovecot:
     image: dovecot/dovecot:2.3-latest
@@ -12,3 +14,15 @@ services:
       - ./crates/core/tests/dovecot:/etc/dovecot/lettera:ro
     tmpfs:
       - /srv/mail:uid=1000,gid=1000
+  mailpit:
+    image: axllent/mailpit:latest
+    command:
+      - --smtp-tls-cert=/certs/cert.pem
+      - --smtp-tls-key=/certs/key.pem
+      - --smtp-require-starttls
+      - --smtp-auth-accept-any
+    ports:
+      - "127.0.0.1:10587:1025"
+      - "127.0.0.1:18025:8025"
+    volumes:
+      - ./crates/core/tests/dovecot:/certs:ro

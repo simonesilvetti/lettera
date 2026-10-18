@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#1a1b26"/>
+  <defs>
+    <mask id="keys" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <g fill="#000">
+        <circle cx="272" cy="610" r="24"/><circle cx="352" cy="610" r="24"/><circle cx="432" cy="610" r="24"/><circle cx="512" cy="610" r="24"/><circle cx="592" cy="610" r="24"/><circle cx="672" cy="610" r="24"/><circle cx="752" cy="610" r="24"/>
+        <circle cx="312" cy="690" r="24"/><circle cx="392" cy="690" r="24"/><circle cx="472" cy="690" r="24"/><circle cx="552" cy="690" r="24"/><circle cx="632" cy="690" r="24"/><circle cx="712" cy="690" r="24"/>
+        <rect x="392" y="748" width="240" height="32"/>
+      </g>
+    </mask>
+    <mask id="lines" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <g fill="#000">
+        <rect x="408" y="232" width="208" height="28"/>
+        <rect x="408" y="300" width="144" height="28"/>
+      </g>
+    </mask>
+  </defs>
+  <rect x="352" y="160" width="320" height="300" fill="#7aa2f7" mask="url(#lines)"/>
+  <rect x="232" y="440" width="560" height="56" fill="#c0caf5"/>
+  <rect x="172" y="528" width="680" height="296" fill="#c0caf5" mask="url(#keys)"/>
+</svg>

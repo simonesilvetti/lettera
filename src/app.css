@@ -1,0 +1,156 @@
+/* lettera — text-first. Colors only from the eight tokens, separators only 1px lines. */
+
+:root {
+  --bg: #1a1b26;
+  --fg: #c0caf5;
+  --muted: #8089b3;
+  --border: #292e42;
+  --surface: #24283b;
+  --accent: #7aa2f7;
+  --red: #f7768e;
+  --green: #9ece6a;
+  --font: 'JetBrains Mono', ui-monospace, monospace;
+  --fs: 13px;
+  --fs-body: calc(var(--fs) + 1px);
+  --fs-small: calc(var(--fs) - 1px);
+  --fs-tiny: calc(var(--fs) - 2px);
+  --line: 1px solid var(--border);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #666666;
+    --border: #e6e6e6;
+    --surface: #f3f3f3;
+    --accent: #2f6fed;
+    --red: #c62828;
+    --green: #2e7d32;
+    color-scheme: light;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: var(--fs);
+  line-height: 1.4;
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: var(--fg);
+  background: transparent;
+  border: 0;
+  outline: none;
+  user-select: text;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: var(--fs-small);
+}
+
+.key {
+  color: var(--fg);
+}
+
+.selectable {
+  user-select: text;
+}
+
+/* shortcut hint: the letter in fg, the word in muted */
+.hint {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.hint b {
+  color: var(--fg);
+  font-weight: normal;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

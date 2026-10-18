@@ -769,6 +769,8 @@ impl Engine {
             username: clean(&n.username).filter(|u| u != n.email.trim()),
             client_id: clean(&n.client_id),
             client_secret: clean(&n.client_secret),
+            imap_tls: clean(&n.imap_tls),
+            smtp_tls: clean(&n.smtp_tls),
         };
         acc.validate()?;
         Ok(acc)

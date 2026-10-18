@@ -247,15 +247,33 @@ pub async fn connect(ep: &Endpoint, creds: &Credentials) -> Result<RealImap> {
 }
 
 /// Same as [`connect`] with a custom TLS configuration (tests use their own CA).
+/// The whole handshake (TCP, TLS, greeting, login) is bounded by a timeout.
 pub async fn connect_with(
     ep: &Endpoint,
     creds: &Credentials,
     connector: &TlsConnector,
 ) -> Result<RealImap> {
-    let timeout = std::time::Duration::from_secs(30);
-    let tcp = tokio::time::timeout(timeout, TcpStream::connect((ep.host.as_str(), ep.port)))
-        .await
-        .map_err(|_| Error::Imap(format!("timeout connessione a {}", ep.host)))??;
+    tokio::time::timeout(
+        std::time::Duration::from_secs(45),
+        open(ep, creds, connector),
+    )
+    .await
+    .map_err(|_| {
+        Error::Imap(format!(
+            "nessuna risposta da {}:{} ({}): controlla porta e modalità tls",
+            ep.host,
+            ep.port,
+            if ep.implicit_tls {
+                "tls implicito"
+            } else {
+                "starttls"
+            }
+        ))
+    })?
+}
+
+async fn open(ep: &Endpoint, creds: &Credentials, connector: &TlsConnector) -> Result<RealImap> {
+    let tcp = TcpStream::connect((ep.host.as_str(), ep.port)).await?;
     let stream = if ep.implicit_tls {
         tls(connector, tcp, &ep.host).await?
     } else {

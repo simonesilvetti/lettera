@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Finestra principale: solo eventi e comandi dell'app.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

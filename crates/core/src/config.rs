@@ -67,15 +67,31 @@ pub struct AccountConfig {
     pub client_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub client_secret: Option<String>,
+    /// "implicit" or "starttls"; only needed for non-standard ports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub imap_tls: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub smtp_tls: Option<String>,
 }
 
-/// Where and how to reach a server. TLS mode follows the port:
-/// 993/465 are implicit TLS, anything else uses STARTTLS.
+/// Where and how to reach a server. TLS mode follows the port (993/465 are
+/// implicit TLS, anything else STARTTLS) unless `imap_tls`/`smtp_tls` say otherwise.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Endpoint {
     pub host: String,
     pub port: u16,
     pub implicit_tls: bool,
+}
+
+fn tls_mode(setting: Option<&str>, default: bool) -> Result<bool> {
+    match setting {
+        None => Ok(default),
+        Some("implicit") | Some("tls") => Ok(true),
+        Some("starttls") => Ok(false),
+        Some(other) => Err(Error::Config(format!(
+            "tls {other:?} non valido: usa \"implicit\" o \"starttls\""
+        ))),
+    }
 }
 
 impl AccountConfig {
@@ -105,7 +121,7 @@ impl AccountConfig {
         Ok(Endpoint {
             host,
             port,
-            implicit_tls: port == 993,
+            implicit_tls: tls_mode(self.imap_tls.as_deref(), port == 993)?,
         })
     }
 
@@ -127,7 +143,7 @@ impl AccountConfig {
         Ok(Endpoint {
             host,
             port,
-            implicit_tls: port == 465,
+            implicit_tls: tls_mode(self.smtp_tls.as_deref(), port == 465)?,
         })
     }
 
@@ -242,6 +258,12 @@ fn account_block(a: &AccountConfig) -> String {
     }
     if let Some(v) = &a.client_secret {
         out += &format!("client_secret = {}\n", toml_str(v));
+    }
+    if let Some(v) = &a.imap_tls {
+        out += &format!("imap_tls = {}\n", toml_str(v));
+    }
+    if let Some(v) = &a.smtp_tls {
+        out += &format!("smtp_tls = {}\n", toml_str(v));
     }
     if !a.is_google() {
         out += "# la password sta nel keyring di sistema, mai nel file\n";
@@ -377,11 +399,15 @@ client_secret = "secret"
             username: None,
             client_id: None,
             client_secret: None,
+            imap_tls: Some("implicit".into()),
+            smtp_tls: None,
         };
         let text = append_account(SAMPLE, &acc);
         let c = parse(&text).unwrap();
         assert_eq!(c.accounts.len(), 3);
         assert_eq!(c.accounts[2], acc);
+        assert!(c.accounts[2].imap().unwrap().implicit_tls);
+        assert!(!c.accounts[2].smtp().unwrap().implicit_tls);
         let back = remove_account(&text, "nome@dominio.it");
         let c = parse(&back).unwrap();
         assert_eq!(c.accounts.len(), 2);
@@ -402,6 +428,8 @@ client_secret = "secret"
             username: None,
             client_id: Some("c".into()),
             client_secret: Some("s".into()),
+            imap_tls: None,
+            smtp_tls: None,
         };
         let text = append_account("", &acc);
         let c = parse(&text).unwrap();

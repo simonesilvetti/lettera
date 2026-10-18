@@ -192,6 +192,18 @@ pub async fn refresh(
     })
 }
 
+/// Plain GET returning the body (used by tests to talk to local services).
+pub async fn http_get(url: &str) -> Result<String> {
+    http()?
+        .get(url)
+        .send()
+        .await
+        .map_err(auth_err)?
+        .text()
+        .await
+        .map_err(auth_err)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

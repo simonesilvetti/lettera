@@ -200,4 +200,8 @@ pub struct NewAccount {
     pub client_id: Option<String>,
     #[serde(default)]
     pub client_secret: Option<String>,
+    #[serde(default)]
+    pub imap_tls: Option<String>,
+    #[serde(default)]
+    pub smtp_tls: Option<String>,
 }

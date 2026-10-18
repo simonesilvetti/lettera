@@ -3,3 +3,24 @@ name = "lettera"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "lettera — client email minimale"
+
+[[bin]]
+name = "lettera"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = "2"
+
+[dependencies]
+anyhow = "1.0.104"
+lettera-core = { path = "../crates/core" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tauri = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
+tokio = { version = "1.53.3", features = ["rt"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
