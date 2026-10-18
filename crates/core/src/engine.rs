@@ -612,6 +612,7 @@ impl Inner {
         let t = theme::resolve(&cfg.theme, &cfg.font, cfg.font_size);
         let mut current = lock(&self.theme);
         if *current != t {
+            tracing::info!("tema aggiornato");
             *current = t.clone();
             drop(current);
             self.emit(Event::ThemeChanged(t));

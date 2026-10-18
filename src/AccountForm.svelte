@@ -255,7 +255,9 @@
 
   .kinds button.on {
     color: var(--fg);
-    box-shadow: inset 0 -1px 0 var(--accent);
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-underline-offset: 4px;
   }
 
   .note {
