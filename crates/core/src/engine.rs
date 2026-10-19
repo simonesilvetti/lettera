@@ -32,13 +32,18 @@ const SYNC_INTERVAL: Duration = Duration::from_secs(5 * 60);
 const PREFETCH_DAYS: i64 = 30;
 const PREFETCH_LIMIT: i64 = 150;
 /// A connection unused for this long is pinged before it is trusted again.
-const IDLE_CHECK: Duration = Duration::from_secs(60);
+/// Shorter pauses are covered by TCP keepalive and the user timeout (see
+/// `imap::detect_dead_peer`); the ping costs a round trip (~200 ms on Gmail).
+/// Messages of a selected thread whose bodies are fetched ahead.
+const PREFETCH_THREAD: usize = 10;
+const IDLE_CHECK: Duration = Duration::from_secs(5 * 60);
 
 pub type Opener = Arc<dyn Fn(String) + Send + Sync>;
 
 /// Work for the foreground connection (user actions, bodies on demand).
 enum Action {
-    Body(i64),
+    /// Bodies to download; they go ahead of every other queued action.
+    Bodies(Vec<i64>),
     Flags {
         folder: FolderRow,
         uids: Vec<u32>,
@@ -114,6 +119,8 @@ struct Inner {
     workers: Mutex<HashMap<String, Worker>>,
     tokens: tokio::sync::Mutex<HashMap<String, AccessToken>>,
     images: Mutex<HashSet<i64>>,
+    /// Message ids whose body is queued or being downloaded.
+    fetching: Mutex<HashSet<i64>>,
     /// (folder id, uid) of messages an action is moving away right now.
     pending: Mutex<HashSet<(i64, u32)>>,
     watcher: Mutex<Option<notify::RecommendedWatcher>>,
@@ -249,6 +256,27 @@ impl Inner {
         if let Some(w) = lock(&self.workers).get(email) {
             let _ = w.syncs.send(job);
         }
+    }
+
+    /// Queues the download of these bodies, unless already on the way.
+    fn request_bodies(&self, email: &str, ids: &[i64]) -> Result<()> {
+        let ids: Vec<i64> = {
+            let mut fetching = lock(&self.fetching);
+            ids.iter()
+                .copied()
+                .filter(|id| fetching.insert(*id))
+                .collect()
+        };
+        if ids.is_empty() {
+            return Ok(());
+        }
+        self.act(email, Action::Bodies(ids.clone()))
+            .inspect_err(|_| {
+                let mut fetching = lock(&self.fetching);
+                for id in &ids {
+                    fetching.remove(id);
+                }
+            })
     }
 
     fn act(&self, email: &str, a: Action) -> Result<()> {
@@ -470,16 +498,10 @@ impl Inner {
             return Ok(Vec::new());
         };
         match action {
-            Action::Body(id) => {
-                let m = self.db.message(*id)?;
-                if sync::fetch_body(c, &self.db, &m).await? {
-                    self.emit(Event::BodyReady { id: *id });
-                    Ok(Vec::new())
-                } else {
-                    // gone from the server: a sync drops the row (announcing
-                    // the body would only make the view ask for it again)
-                    Ok(vec![m.folder_id])
-                }
+            // messages gone from the server are not announced (the view would
+            // only ask again): the sync of their folder drops the rows
+            Action::Bodies(ids) => {
+                sync::fetch_bodies(c, &self.db, ids, |id| self.emit(Event::BodyReady { id })).await
             }
             Action::Flags {
                 folder,
@@ -586,6 +608,12 @@ impl Inner {
 
     fn release(&self, a: &Action) {
         match a {
+            Action::Bodies(ids) => {
+                let mut fetching = lock(&self.fetching);
+                for id in ids {
+                    fetching.remove(id);
+                }
+            }
             Action::Move { from, uids, .. } => self.set_pending(from.id, uids, false),
             Action::Expunge { folder, uids } => self.set_pending(folder.id, uids, false),
             Action::Draft {
@@ -603,7 +631,25 @@ impl Inner {
     ) {
         let mut conn: Option<RealImap> = None;
         let mut used = Instant::now();
-        while let Some(action) = rx.recv().await {
+        let mut queue: std::collections::VecDeque<Action> = Default::default();
+        loop {
+            if queue.is_empty() {
+                match rx.recv().await {
+                    Some(a) => queue.push_back(a),
+                    None => break,
+                }
+            }
+            while let Ok(a) = rx.try_recv() {
+                queue.push_back(a);
+            }
+            // someone is waiting for a body: it goes before flags and moves
+            let next = queue
+                .iter()
+                .position(|a| matches!(a, Action::Bodies(_)))
+                .unwrap_or(0);
+            let Some(action) = queue.remove(next) else {
+                continue;
+            };
             let mut slot = Some(action);
             check_alive(&mut conn, used).await;
             let mut res = guarded(self.run_action(&email, &mut conn, &mut slot)).await;
@@ -828,6 +874,7 @@ impl Engine {
             workers: Mutex::new(HashMap::new()),
             tokens: tokio::sync::Mutex::new(HashMap::new()),
             images: Mutex::new(HashSet::new()),
+            fetching: Mutex::new(HashSet::new()),
             pending: Mutex::new(HashSet::new()),
             watcher: Mutex::new(None),
         });
@@ -1041,6 +1088,22 @@ impl Engine {
         self.inner.db.thread(thread_id)
     }
 
+    /// Starts downloading the bodies of a thread the user is likely to open
+    /// (the selected row), newest first, so opening it shows them at once.
+    pub fn prefetch_thread(&self, thread_id: &str) -> Result<()> {
+        let view = self.inner.db.thread(thread_id)?;
+        let mut ids = Vec::new();
+        for m in view.messages.iter().rev().take(PREFETCH_THREAD) {
+            if self.inner.db.body(m.id)?.is_none() {
+                ids.push(m.id);
+            }
+        }
+        if ids.is_empty() {
+            return Ok(());
+        }
+        self.inner.request_bodies(&view.account, &ids)
+    }
+
     pub fn get_body(&self, id: i64, mode: &str) -> Result<BodyView> {
         let m = self.inner.db.message(id)?;
         match self.inner.db.body(id)? {
@@ -1072,7 +1135,7 @@ impl Engine {
             }
             None => {
                 let email = self.inner.db.account_email(m.account_id)?;
-                self.inner.act(&email, Action::Body(id))?;
+                self.inner.request_bodies(&email, &[id])?;
                 Ok(BodyView {
                     id,
                     ready: false,
@@ -1112,12 +1175,22 @@ impl Engine {
 
     pub fn set_flags(&self, ids: &[i64], add: &[String], remove: &[String]) -> Result<()> {
         // a thread shows one row per message, but the list may show another
-        // copy of it (INBOX vs Important on Gmail): change them all
-        let ids = self.inner.db.with_copies(ids)?;
-        let ids = &ids[..];
-        self.inner.db.change_flags(ids, add, remove)?;
-        for (folder, email, rows) in self.by_folder(ids)? {
+        // copy of it (INBOX vs Important on Gmail): change them all locally.
+        // Gmail shares flags between labels, so the server needs one STORE.
+        let copies = self.inner.db.with_copies(ids)?;
+        self.inner.db.change_flags(&copies, add, remove)?;
+        let gmail = match self.inner.db.messages(ids)?.first() {
+            Some(m) => {
+                let email = self.inner.db.account_email(m.account_id)?;
+                self.inner.account(&email)?.gmail_semantics()
+            }
+            None => return Ok(()),
+        };
+        let remote = if gmail { ids } else { &copies[..] };
+        for (folder, email, _) in self.by_folder(&copies)? {
             self.changed(&email, folder.id);
+        }
+        for (folder, email, rows) in self.by_folder(remote)? {
             let uids = rows.iter().map(|m| m.uid).collect();
             self.inner.act(
                 &email,

@@ -1,7 +1,7 @@
 <script lang="ts">
   import Clip from './Clip.svelte';
   import { untrack } from 'svelte';
-  import { app, ensureLoaded, openThread, shortDate } from './lib/state.svelte';
+  import { app, ensureLoaded, openThread, prefetchSelected, shortDate } from './lib/state.svelte';
   import { rowAt, rowCount, rowOf, scrollInto, visibleWindow } from './lib/virtual';
 
   const ROW = 38;
@@ -21,6 +21,11 @@
   $effect(() => {
     const idx = rows.flatMap((r) => (r.row?.kind === 'thread' ? [r.row.index] : []));
     if (idx.length) untrack(() => ensureLoaded(Math.min(...idx), Math.max(...idx) + 1));
+  });
+
+  $effect(() => {
+    const id = app.items[app.selected]?.thread_id;
+    untrack(() => prefetchSelected(id));
   });
 
   $effect(() => {

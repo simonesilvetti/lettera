@@ -1,7 +1,7 @@
 // UI state and the actions that change it. Domain logic lives in Rust:
 // everything here either asks the backend or decides what to draw.
 
-import { api, on } from './api';
+import { api, on } from "./api";
 import type {
   AccountInfo,
   AppInfo,
@@ -16,10 +16,10 @@ import type {
   ThemePayload,
   ThreadSummary,
   ThreadView,
-} from './types';
+} from "./types";
 
-export type Screen = 'loading' | 'setup' | 'inbox' | 'compose';
-export type Focus = 'list' | 'thread' | 'search';
+export type Screen = "loading" | "setup" | "inbox" | "compose";
+export type Focus = "list" | "thread" | "search";
 
 export interface PaletteItem {
   label: string;
@@ -40,23 +40,23 @@ export interface PaletteState {
 const PAGE = 100;
 
 class AppState {
-  screen = $state<Screen>('loading');
+  screen = $state<Screen>("loading");
   accounts = $state<AccountInfo[]>([]);
-  account = $state('');
+  account = $state("");
   folders = $state<FolderInfo[]>([]);
   folderId = $state(0);
 
-  query = $state('');
+  query = $state("");
   total = $state(0);
   unread = $state(0);
   groups = $state<DateGroup[]>([]);
   items = $state<(ThreadSummary | undefined)[]>([]);
   selected = $state(0);
-  focus = $state<Focus>('list');
+  focus = $state<Focus>("list");
   loaded = $state(false);
 
   thread = $state<ThreadView | null>(null);
-  threadKey = $state('');
+  threadKey = $state("");
   cursor = $state(0);
   expanded = $state<Record<number, boolean>>({});
   bodies = $state<Record<number, BodyView>>({});
@@ -98,38 +98,59 @@ function fail(e: unknown) {
 // ------------------------------------------------------------------ helpers
 
 const ROLE_LABELS: Record<string, string> = {
-  inbox: 'inbox',
-  sent: 'sent',
-  drafts: 'drafts',
-  trash: 'trash',
-  archive: 'archive',
-  all: 'all mail',
-  junk: 'spam',
+  inbox: "inbox",
+  sent: "sent",
+  drafts: "drafts",
+  trash: "trash",
+  archive: "archive",
+  all: "all mail",
+  junk: "spam",
 };
 
 export function folderLabel(f: FolderInfo | undefined): string {
-  if (!f) return '';
+  if (!f) return "";
   if (f.role && ROLE_LABELS[f.role]) return ROLE_LABELS[f.role];
-  const parts = f.name.split('/');
+  const parts = f.name.split("/");
   return parts[parts.length - 1].toLowerCase();
 }
 
-const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const MONTHS = [
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "may",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "oct",
+  "nov",
+  "dec",
+];
 
 function pad(n: number) {
-  return String(n).padStart(2, '0');
+  return String(n).padStart(2, "0");
 }
 
 /** "14:02" today, "thu 15" within the week, "14 oct" otherwise (plus year if not this one). */
 export function shortDate(ts: number): string {
   const d = new Date(ts * 1000);
   const now = new Date();
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  if (d.getTime() >= midnight) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  if (d.getTime() >= midnight - 6 * 86400_000) return `${DAYS[d.getDay()]} ${d.getDate()}`;
+  const midnight = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  if (d.getTime() >= midnight)
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (d.getTime() >= midnight - 6 * 86400_000)
+    return `${DAYS[d.getDay()]} ${d.getDate()}`;
   const base = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
-  return d.getFullYear() === now.getFullYear() ? base : `${base} ${d.getFullYear()}`;
+  return d.getFullYear() === now.getFullYear()
+    ? base
+    : `${base} ${d.getFullYear()}`;
 }
 
 export function longDate(ts: number): string {
@@ -157,7 +178,7 @@ export function currentSummary(): ThreadSummary | undefined {
 }
 
 export function isGoogle(): boolean {
-  return app.accounts.find((a) => a.email === app.account)?.kind === 'google';
+  return app.accounts.find((a) => a.email === app.account)?.kind === "google";
 }
 
 // ------------------------------------------------------------- loading data
@@ -165,14 +186,15 @@ export function isGoogle(): boolean {
 export async function loadAccounts() {
   app.accounts = await api.listAccounts();
   if (app.accounts.length === 0) {
-    app.screen = 'setup';
-    app.account = '';
+    app.screen = "setup";
+    app.account = "";
     return;
   }
   if (!app.accounts.some((a) => a.email === app.account)) {
     await selectAccount(app.accounts[0].email);
   }
-  if (app.screen === 'loading' || (app.screen === 'setup' && !app.setupOpen)) app.screen = 'inbox';
+  if (app.screen === "loading" || (app.screen === "setup" && !app.setupOpen))
+    app.screen = "inbox";
 }
 
 export async function selectAccount(email: string) {
@@ -186,7 +208,7 @@ export async function loadFolders() {
   if (!app.account) return;
   app.folders = await api.listFolders(app.account);
   if (!app.folders.some((f) => f.id === app.folderId)) {
-    const inbox = app.folders.find((f) => f.role === 'inbox') ?? app.folders[0];
+    const inbox = app.folders.find((f) => f.role === "inbox") ?? app.folders[0];
     if (inbox) await selectFolder(inbox.id);
     else resetList();
   }
@@ -215,7 +237,12 @@ async function loadPage(page: number, force = false) {
   const gen = generation;
   pagesLoading.add(page);
   try {
-    const res = await api.listThreads(app.folderId, app.query, page * PAGE, PAGE);
+    const res = await api.listThreads(
+      app.folderId,
+      app.query,
+      page * PAGE,
+      PAGE,
+    );
     if (gen !== generation) return;
     app.total = res.total;
     app.unread = res.unread;
@@ -235,10 +262,17 @@ async function loadPage(page: number, force = false) {
 
 /** Makes sure thread rows [start, end) are loaded. */
 export function ensureLoaded(start: number, end: number) {
-  for (let p = Math.floor(start / PAGE); p <= Math.floor(Math.max(start, end - 1) / PAGE); p++) {
+  for (
+    let p = Math.floor(start / PAGE);
+    p <= Math.floor(Math.max(start, end - 1) / PAGE);
+    p++
+  ) {
     const first = p * PAGE;
     if (first >= app.total && app.loaded) break;
-    if (app.items[first] === undefined || app.items[Math.min(first + PAGE, app.total) - 1] === undefined) {
+    if (
+      app.items[first] === undefined ||
+      app.items[Math.min(first + PAGE, app.total) - 1] === undefined
+    ) {
       void loadPage(p);
     }
   }
@@ -265,16 +299,16 @@ export function setQuery(q: string) {
 
 export function closeThread() {
   app.thread = null;
-  app.threadKey = '';
+  app.threadKey = "";
   app.cursor = 0;
-  if (app.focus === 'thread') app.focus = 'list';
+  if (app.focus === "thread") app.focus = "list";
 }
 
 /** Moves focus to the right pane: the selected thread, opened if it is not already. */
 export async function focusThread() {
   const summary = app.items[app.selected];
   if (!summary) return;
-  if (app.thread && app.threadKey === summary.thread_id) app.focus = 'thread';
+  if (app.thread && app.threadKey === summary.thread_id) app.focus = "thread";
   else await openThread();
 }
 
@@ -286,7 +320,7 @@ export async function openThread(index = app.selected) {
     const view = await api.getThread(summary.thread_id);
     app.thread = view;
     app.threadKey = summary.thread_id;
-    app.focus = 'thread';
+    app.focus = "thread";
     const last = view.messages.length - 1;
     app.cursor = last;
     const expanded: Record<number, boolean> = {};
@@ -296,7 +330,7 @@ export async function openThread(index = app.selected) {
     app.expanded = expanded;
     for (const id of Object.keys(expanded)) void loadBody(Number(id));
     const unread = view.messages.filter((m) => m.unread).map((m) => m.id);
-    if (unread.length) await api.setFlags(unread, ['\\Seen'], []);
+    if (unread.length) await api.setFlags(unread, ["\\Seen"], []);
   } catch (e) {
     fail(e);
   }
@@ -315,7 +349,7 @@ async function reloadThread() {
 
 export async function loadBody(id: number) {
   try {
-    const body = await api.getBody(id, app.htmlMode[id] ? 'html' : 'text');
+    const body = await api.getBody(id, app.htmlMode[id] ? "html" : "text");
     app.bodies[id] = body;
     if (!body.ready) return;
     // Always ask: before the body was downloaded `has_attachments` was only a
@@ -353,7 +387,20 @@ export async function enableImages(id = cursorMessage()?.id) {
   await api.enableImages(id);
   app.htmlMode[id] = true;
   await loadBody(id);
-  flash('images enabled for this message');
+  flash("images enabled for this message");
+}
+
+let prefetchTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Downloads the selected thread's bodies ahead, once the selection rests a
+ *  moment (holding j should not queue every thread it passes). */
+export function prefetchSelected(threadId: string | undefined) {
+  clearTimeout(prefetchTimer);
+  if (!threadId) return;
+  prefetchTimer = setTimeout(
+    () => void api.prefetchThread(threadId).catch(() => {}),
+    150,
+  );
 }
 
 export function moveSelection(delta: number) {
@@ -363,7 +410,10 @@ export function moveSelection(delta: number) {
 
 export function moveCursor(delta: number) {
   if (!app.thread) return;
-  app.cursor = Math.max(0, Math.min(app.thread.messages.length - 1, app.cursor + delta));
+  app.cursor = Math.max(
+    0,
+    Math.min(app.thread.messages.length - 1, app.cursor + delta),
+  );
 }
 
 export async function nextThread(delta: number) {
@@ -380,10 +430,13 @@ function targetIds(): number[] {
   return currentSummary()?.ids ?? [];
 }
 
-async function removeAndAdvance(fn: (ids: number[]) => Promise<void>, done: string) {
+async function removeAndAdvance(
+  fn: (ids: number[]) => Promise<void>,
+  done: string,
+) {
   const ids = targetIds();
   if (!ids.length) return;
-  const wasOpen = app.focus === 'thread';
+  const wasOpen = app.focus === "thread";
   try {
     await fn(ids);
     flash(done);
@@ -395,20 +448,25 @@ async function removeAndAdvance(fn: (ids: number[]) => Promise<void>, done: stri
   }
 }
 
-export const archive = () => removeAndAdvance(api.archive, 'archived');
-export const remove = () => removeAndAdvance(api.delete, 'deleted');
+export const archive = () => removeAndAdvance(api.archive, "archived");
+export const remove = () => removeAndAdvance(api.delete, "deleted");
 
 export async function moveTo(folder: FolderInfo) {
-  await removeAndAdvance((ids) => api.moveTo(ids, folder.id), `moved to ${folderLabel(folder)}`);
+  await removeAndAdvance(
+    (ids) => api.moveTo(ids, folder.id),
+    `moved to ${folderLabel(folder)}`,
+  );
 }
 
 export async function markRead(read: boolean) {
   const ids = targetIds();
   if (!ids.length) return;
   try {
-    await (read ? api.setFlags(ids, ['\\Seen'], []) : api.setFlags(ids, [], ['\\Seen']));
+    await (read
+      ? api.setFlags(ids, ["\\Seen"], [])
+      : api.setFlags(ids, [], ["\\Seen"]));
     if (!read) closeThread();
-    flash(read ? 'marked as read' : 'marked as unread');
+    flash(read ? "marked as read" : "marked as unread");
   } catch (e) {
     fail(e);
   }
@@ -418,8 +476,10 @@ export async function toggleFlag() {
   const s = currentSummary();
   if (!s) return;
   try {
-    await (s.flagged ? api.setFlags(s.ids, [], ['\\Flagged']) : api.setFlags(s.ids, ['\\Flagged'], []));
-    flash(s.flagged ? 'flag removed' : 'flagged');
+    await (s.flagged
+      ? api.setFlags(s.ids, [], ["\\Flagged"])
+      : api.setFlags(s.ids, ["\\Flagged"], []));
+    flash(s.flagged ? "flag removed" : "flagged");
   } catch (e) {
     fail(e);
   }
@@ -427,18 +487,18 @@ export async function toggleFlag() {
 
 /** From a notification click: that account's INBOX, with the message's thread open. */
 export async function openMessage(account: string, id: number) {
-  if (app.screen === 'compose') {
-    flash('new mail: finish or close this draft first');
+  if (app.screen === "compose") {
+    flash("new mail: finish or close this draft first");
     return;
   }
   app.palette = null;
-  app.screen = 'inbox';
+  app.screen = "inbox";
   if (app.account !== account) await selectAccount(account);
-  const inbox = app.folders.find((f) => f.role === 'inbox');
+  const inbox = app.folders.find((f) => f.role === "inbox");
   if (!inbox) return;
   clearTimeout(searchTimer);
-  app.query = '';
-  app.focus = 'list';
+  app.query = "";
+  app.focus = "list";
   await selectFolder(inbox.id);
   const index = app.items.findIndex((t) => t?.ids.includes(id));
   if (index >= 0) await openThread(index);
@@ -447,7 +507,9 @@ export async function openMessage(account: string, id: number) {
 export function goToRole(role: string) {
   const f =
     app.folders.find((x) => x.role === role) ??
-    (role === 'archive' ? app.folders.find((x) => x.role === 'all') : undefined);
+    (role === "archive"
+      ? app.folders.find((x) => x.role === "all")
+      : undefined);
   if (!f) {
     flash(`no ${ROLE_LABELS[role] ?? role} folder`, true);
     return;
@@ -475,7 +537,7 @@ let autosave: ReturnType<typeof setInterval> | undefined;
 /** Something was typed since the draft was opened. */
 let touched = false;
 /** The body a fresh draft starts with (the signature): unchanged = blank. */
-let initialBody = '';
+let initialBody = "";
 
 function openDraft(d: Draft) {
   app.draft = d;
@@ -484,7 +546,7 @@ function openDraft(d: Draft) {
   app.draftBcc = !!d.bcc;
   app.draftQuote = false;
   app.confirmDiscard = false;
-  app.screen = 'compose';
+  app.screen = "compose";
   touched = false;
   initialBody = d.body;
   clearInterval(autosave);
@@ -493,9 +555,12 @@ function openDraft(d: Draft) {
 
 export async function compose(kind: DraftKind) {
   if (!app.account) return;
-  const source = kind === 'new' ? null : (cursorMessage() ?? app.thread?.messages.at(-1))?.id ?? null;
-  if (kind !== 'new' && source === null) {
-    flash('open a thread first', true);
+  const source =
+    kind === "new"
+      ? null
+      : ((cursorMessage() ?? app.thread?.messages.at(-1))?.id ?? null);
+  if (kind !== "new" && source === null) {
+    flash("open a thread first", true);
     return;
   }
   try {
@@ -506,7 +571,7 @@ export async function compose(kind: DraftKind) {
 }
 
 export function isDraftMessage(m: MessageView): boolean {
-  return app.folders.some((f) => f.id === m.folder_id && f.role === 'drafts');
+  return app.folders.some((f) => f.id === m.folder_id && f.role === "drafts");
 }
 
 /** The draft to edit: the message under the cursor, or the thread's last draft. */
@@ -518,10 +583,10 @@ export function draftMessage(): MessageView | undefined {
 
 /** Opens a message of the Drafts folder in the composer. */
 export async function editDraft() {
-  if (!draftMessage() && currentFolder()?.role === 'drafts') await openThread();
+  if (!draftMessage() && currentFolder()?.role === "drafts") await openThread();
   const m = draftMessage();
   if (!m) {
-    flash('no draft here', true);
+    flash("no draft here", true);
     return;
   }
   try {
@@ -552,7 +617,7 @@ export async function saveDraft() {
 function leaveCompose() {
   clearInterval(autosave);
   app.draft = null;
-  app.screen = 'inbox';
+  app.screen = "inbox";
 }
 
 /** Nothing worth keeping: no recipients, subject or files, body as it started. */
@@ -574,7 +639,8 @@ export async function closeCompose() {
   // opened and left as it was: the stored copy (if any) is still current
   if (!touched && (d.id === null || d.message_id)) return leaveCompose();
   if (isBlank(d)) {
-    if (d.id !== null || d.message_id) await api.discardDraft($state.snapshot(d) as Draft).catch(fail);
+    if (d.id !== null || d.message_id)
+      await api.discardDraft($state.snapshot(d) as Draft).catch(fail);
     return leaveCompose();
   }
   await keepDraft();
@@ -590,7 +656,7 @@ export async function discardDraft() {
   try {
     await api.discardDraft($state.snapshot(app.draft) as Draft);
     leaveCompose();
-    flash('draft discarded');
+    flash("draft discarded");
   } catch (e) {
     fail(e);
   }
@@ -599,12 +665,12 @@ export async function discardDraft() {
 export async function send() {
   if (!app.draft || app.sending) return;
   app.sending = true;
-  flash('sending…');
+  flash("sending…");
   try {
     await saveDraftNow();
     await api.send($state.snapshot(app.draft) as Draft);
     leaveCompose();
-    flash('sent');
+    flash("sent");
   } catch (e) {
     fail(e);
   } finally {
@@ -630,7 +696,7 @@ export async function keepDraft() {
     return;
   }
   leaveCompose();
-  flash('saved to drafts');
+  flash("saved to drafts");
 }
 
 export async function attach() {
@@ -652,8 +718,8 @@ export const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
 // ------------------------------------------------------------------ palette
 
-export function openPalette(items: PaletteItem[] | null = null, title = '') {
-  app.palette = { title, query: '', index: 0, items, info: false };
+export function openPalette(items: PaletteItem[] | null = null, title = "") {
+  app.palette = { title, query: "", index: 0, items, info: false };
 }
 
 export function closePalette() {
@@ -662,12 +728,21 @@ export function closePalette() {
 
 export async function showInfo() {
   app.info ??= await api.appInfo();
-  app.palette = { title: '', query: '', index: 0, items: [], info: true };
+  app.palette = { title: "", query: "", index: 0, items: [], info: true };
 }
 
 // ------------------------------------------------------------------ theme
 
-const TOKENS = ['bg', 'fg', 'muted', 'border', 'surface', 'accent', 'red', 'green'] as const;
+const TOKENS = [
+  "bg",
+  "fg",
+  "muted",
+  "border",
+  "surface",
+  "accent",
+  "red",
+  "green",
+] as const;
 
 export function applyTheme(t: ThemePayload) {
   const root = document.documentElement.style;
@@ -675,21 +750,22 @@ export function applyTheme(t: ThemePayload) {
     if (t.tokens) root.setProperty(`--${k}`, t.tokens[k]);
     else root.removeProperty(`--${k}`);
   }
-  root.setProperty('--font', `"${t.font}", ui-monospace, monospace`);
-  root.setProperty('--fs', `${t.font_size}px`);
+  root.setProperty("--font", `"${t.font}", ui-monospace, monospace`);
+  root.setProperty("--fs", `${t.font_size}px`);
 }
 
 // ------------------------------------------------------------------ startup
 
 export async function start() {
   applyTheme(await api.getTheme());
-  await on('theme:changed', applyTheme);
-  await on('sync:status', (s) => {
+  await on("theme:changed", applyTheme);
+  await on("sync:status", (s) => {
     app.status[s.account] = s;
-    if (s.state === 'error' && (s.account === app.account || !s.account)) flash(s.message, true);
-    if (s.state === 'idle' && s.account === app.account) void loadFolders();
+    if (s.state === "error" && (s.account === app.account || !s.account))
+      flash(s.message, true);
+    if (s.state === "idle" && s.account === app.account) void loadFolders();
   });
-  await on('messages:changed', (e) => {
+  await on("messages:changed", (e) => {
     if (e.account !== app.account) return;
     if (!app.folderId) {
       void loadFolders();
@@ -700,13 +776,14 @@ export async function start() {
       if (app.thread) void reloadThread();
     }
   });
-  await on('body:ready', ({ id }) => {
-    if (app.bodies[id] || app.thread?.messages.some((m) => m.id === id)) void loadBody(id);
+  await on("body:ready", ({ id }) => {
+    if (app.bodies[id] || app.thread?.messages.some((m) => m.id === id))
+      void loadBody(id);
   });
-  await on('accounts:changed', () => void loadAccounts());
-  await on('open_message', ({ account, id }) => void openMessage(account, id));
-  await on('tray:compose', () => {
-    if (app.screen === 'inbox') void compose('new');
+  await on("accounts:changed", () => void loadAccounts());
+  await on("open_message", ({ account, id }) => void openMessage(account, id));
+  await on("tray:compose", () => {
+    if (app.screen === "inbox") void compose("new");
   });
   await loadAccounts();
 }

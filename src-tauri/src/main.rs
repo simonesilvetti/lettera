@@ -191,6 +191,11 @@ fn get_thread(engine: State<Engine>, thread_id: String) -> Res<ThreadView> {
 }
 
 #[tauri::command(rename_all = "snake_case")]
+fn prefetch_thread(engine: State<Engine>, thread_id: String) -> Res<()> {
+    engine.prefetch_thread(&thread_id).map_err(err)
+}
+
+#[tauri::command(rename_all = "snake_case")]
 fn get_body(engine: State<Engine>, message_id: i64, mode: String) -> Res<BodyView> {
     engine.get_body(message_id, &mode).map_err(err)
 }
@@ -521,6 +526,7 @@ fn main() -> anyhow::Result<()> {
             list_folders,
             list_threads,
             get_thread,
+            prefetch_thread,
             get_body,
             set_flags,
             archive,

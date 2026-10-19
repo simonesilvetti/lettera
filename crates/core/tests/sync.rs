@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use common::{fixture, MockFolder, MockImap};
 use lettera_core::db::{Db, LOCAL_UID_BASE};
+use lettera_core::imap::ImapClient;
 use lettera_core::parse;
 use lettera_core::sync;
 
@@ -188,6 +189,54 @@ async fn bodies_on_demand_and_prefetch() {
     assert_eq!(atts[0].filename, "fattura-ottobre.pdf");
     let (text, _) = db.body(pdf).unwrap().unwrap();
     assert!(text.contains("In allegato"));
+}
+
+#[tokio::test]
+async fn bodies_come_from_the_selected_copy_in_one_fetch() {
+    let (db, acc) = setup();
+    let mut s = server();
+    // the same three messages in a second folder, as Gmail labels do
+    let mut archive = MockFolder::new(9);
+    for name in [
+        "01_plain.eml",
+        "02_reply_with_references.eml",
+        "08_attachment_pdf.eml",
+    ] {
+        archive.add(fixture(name), "");
+    }
+    s.folders.insert("Archivio".into(), archive);
+    let folders = sync::sync_folder_list(&mut s, &db, acc).await.unwrap();
+    let none = HashSet::new();
+    for f in &folders {
+        sync::sync_folder(&mut s, &db, f, &none).await.unwrap();
+    }
+    let archive = folders.iter().find(|f| f.name == "Archivio").unwrap();
+    let ids: Vec<i64> = db
+        .list_threads(archive.id, "", 0, 10, chrono::Local::now())
+        .unwrap()
+        .items
+        .iter()
+        .flat_map(|t| t.ids.clone())
+        .collect();
+    assert_eq!(ids.len(), 3);
+    // INBOX is selected on the connection: no SELECT, a single FETCH
+    s.select("INBOX").await.unwrap();
+    s.log.clear();
+    let mut ready = Vec::new();
+    let gone = sync::fetch_bodies(&mut s, &db, &ids, |id| ready.push(id))
+        .await
+        .unwrap();
+    assert!(gone.is_empty());
+    assert_eq!(s.log.len(), 1, "{:?}", s.log);
+    assert!(s.log[0].starts_with("FETCH RAW"), "{:?}", s.log);
+    ready.sort();
+    let mut want = ids.clone();
+    want.sort();
+    assert_eq!(ready, want);
+    // already there: nothing asked to the server
+    s.log.clear();
+    sync::fetch_bodies(&mut s, &db, &ids, |_| {}).await.unwrap();
+    assert!(s.log.is_empty(), "{:?}", s.log);
 }
 
 #[tokio::test]

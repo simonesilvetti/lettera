@@ -40,7 +40,9 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Every UID missing locally is new (not only those ≥ UIDNEXT): an interrupted first sync completes by itself.
 - Every selectable folder is synced, *All Mail* on Gmail included; envelopes only.
 - Sync window `sync_months` (default 48, 0 = everything, per-account override): `UID SEARCH SINCE` by arrival date, then flags from `<lowest UID>:*`; messages leaving the window are deleted locally only.
-- Bodies on demand plus prefetch of the last 30 days of INBOX, at most 150 per round.
+- Bodies on demand plus prefetch of the last 30 days of INBOX, at most 150 per round, and of the selected thread (last 10 messages, 150 ms after the selection rests).
+- Body downloads go ahead of other queued actions, are never queued twice, and use the copy in the folder already selected on the connection (else INBOX), one `UID FETCH` per folder.
+- On Gmail a flag change is sent once per message (labels share flags); other servers get it on every copy.
 - `has_attachments` is guessed from the header (`multipart/mixed`) until the body arrives, then corrected by parsing; no BODYSTRUCTURE.
 - Attachments are not stored on disk: the message is downloaded again when the user saves an attachment.
 - Optimistic actions: SQLite changes at once, the server afterwards; UIDs being moved are skipped by sync so they do not reappear.
@@ -51,7 +53,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Queued sync requests are merged into one.
 - Sync errors: retry with growing delay (30 s … 5 min); IDLE reconnects from 2 s to 5 min.
 - Servers without IDLE: NOOP and INBOX sync every 60 s.
-- Dead connections are detected, not waited out: TCP keepalive (60 s, then 3 probes 10 s apart) and a 30 s TCP user timeout on every IMAP socket, and a NOOP (5 s limit) before reusing a sync or action connection idle for over a minute.
+- Dead connections are detected, not waited out: TCP keepalive (60 s, then 3 probes 10 s apart) and a 30 s TCP user timeout on every IMAP socket, and a NOOP (5 s limit) before reusing a sync or action connection idle for over 5 minutes.
 - A role (sent, trash, …) goes to one folder only; SPECIAL-USE wins over names.
 - Generic IMAP archive: the folder with the `archive` role, otherwise `Archive` created on first use.
 - Delete: moves to trash (`Trash` created if missing); deleting from trash is permanent.

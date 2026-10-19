@@ -199,6 +199,71 @@ pub async fn prefetch_bodies<C: ImapClient>(
     Ok(done)
 }
 
+/// (row to store the body on, its uid, id asked for)
+type BodyTarget = (i64, u32, i64);
+
+/// Downloads the bodies of `ids` that no copy has yet, calling `ready` with
+/// each id whose body is now stored. Every message is fetched from the copy in
+/// the folder already selected when there is one (on Gmail each SELECT costs a
+/// round trip of ~300 ms), else from INBOX, else from the row itself; one
+/// `UID FETCH` per folder. Returns the folders where a message was missing.
+pub async fn fetch_bodies<C: ImapClient>(
+    c: &mut C,
+    db: &Db,
+    ids: &[i64],
+    mut ready: impl FnMut(i64),
+) -> Result<Vec<i64>> {
+    let mut groups: Vec<(FolderRow, Vec<BodyTarget>)> = Vec::new();
+    for &id in ids {
+        if db.body(id)?.is_some() {
+            ready(id);
+            continue;
+        }
+        let mut best: Option<(u8, FolderRow, MessageRow)> = None;
+        for m in db.messages(&db.with_copies(&[id])?)? {
+            let f = db.folder(m.folder_id)?;
+            let rank = if c.selected() == Some(f.name.as_str()) {
+                0
+            } else if f.role.as_deref() == Some("inbox") {
+                1
+            } else if m.id == id {
+                2
+            } else {
+                3
+            };
+            if best.as_ref().is_none_or(|(r, _, _)| rank < *r) {
+                best = Some((rank, f, m));
+            }
+        }
+        let Some((_, f, m)) = best else { continue };
+        match groups.iter_mut().find(|(g, _)| g.id == f.id) {
+            Some((_, rows)) => rows.push((m.id, m.uid, id)),
+            None => groups.push((f, vec![(m.id, m.uid, id)])),
+        }
+    }
+    // the selected folder first: no SELECT before the first bodies
+    groups.sort_by_key(|(f, _)| c.selected() != Some(f.name.as_str()));
+    let mut gone = Vec::new();
+    for (folder, rows) in groups {
+        ensure_selected(c, &folder.name).await?;
+        for chunk in rows.chunks(BODY_BATCH) {
+            let uids: Vec<u32> = chunk.iter().map(|(_, u, _)| *u).collect();
+            let fetched = c.fetch_raw(&uid_set(&uids)).await?;
+            for (row, uid, asked) in chunk {
+                match fetched.iter().find(|(u, _)| u == uid) {
+                    Some((_, raw)) => {
+                        db.store_body(*row, &parse::parse_body(raw))?;
+                        ready(*asked);
+                    }
+                    None if !gone.contains(&folder.id) => gone.push(folder.id),
+                    None => {}
+                }
+            }
+        }
+    }
+    Ok(gone)
+}
+
 /// Raw bytes of one message (for bodies on demand and attachments).
 pub async fn fetch_raw<C: ImapClient>(
     c: &mut C,
@@ -211,17 +276,6 @@ pub async fn fetch_raw<C: ImapClient>(
         .into_iter()
         .find(|(u, _)| *u == uid)
         .map(|(_, raw)| raw))
-}
-
-pub async fn fetch_body<C: ImapClient>(c: &mut C, db: &Db, m: &MessageRow) -> Result<bool> {
-    let folder = db.folder(m.folder_id)?;
-    match fetch_raw(c, &folder.name, m.uid).await? {
-        Some(raw) => {
-            db.store_body(m.id, &parse::parse_body(&raw))?;
-            Ok(true)
-        }
-        None => Ok(false),
-    }
 }
 
 pub async fn store_flags<C: ImapClient>(

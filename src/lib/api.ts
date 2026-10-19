@@ -26,6 +26,7 @@ export const api = {
   listThreads: (folder: number, query: string, offset: number, limit: number) =>
     invoke<ThreadPage>('list_threads', { folder, query, offset, limit }),
   getThread: (thread_id: string) => invoke<ThreadView>('get_thread', { thread_id }),
+  prefetchThread: (thread_id: string) => invoke<void>('prefetch_thread', { thread_id }),
   getBody: (message_id: number, mode: 'text' | 'html') =>
     invoke<BodyView>('get_body', { message_id, mode }),
   setFlags: (message_ids: number[], add: string[], remove: string[]) =>
