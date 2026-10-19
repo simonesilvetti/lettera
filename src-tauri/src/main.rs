@@ -203,12 +203,43 @@ fn get_theme(engine: State<Engine>) -> ThemePayload {
     engine.get_theme()
 }
 
+/// On Linux outside Flatpak, `gio open` first: unlike xdg-open on desktops
+/// it does not know (Hyprland & co.), GIO starts terminal editors such as
+/// nvim inside a terminal (via xdg-terminal-exec) instead of with no tty.
+fn open_with_gio(path: &std::path::Path) -> bool {
+    if !cfg!(target_os = "linux") || std::env::var_os("FLATPAK_ID").is_some() {
+        return false;
+    }
+    match std::process::Command::new("gio")
+        .arg("open")
+        .arg(path)
+        .stdin(std::process::Stdio::null())
+        .status()
+    {
+        Ok(s) if s.success() => true,
+        Ok(s) => {
+            tracing::debug!("gio open: {s}");
+            false
+        }
+        Err(e) => {
+            tracing::debug!("gio open: {e}");
+            false
+        }
+    }
+}
+
 #[tauri::command(rename_all = "snake_case")]
-fn open_config(app: AppHandle, engine: State<Engine>) -> Res<String> {
+async fn open_config(app: AppHandle, engine: State<'_, Engine>) -> Res<String> {
     let path = engine.ensure_config_file().map_err(err)?;
-    app.opener()
-        .open_path(path.display().to_string(), None::<&str>)
+    let p = path.clone();
+    let opened = tauri::async_runtime::spawn_blocking(move || open_with_gio(&p))
+        .await
         .map_err(err)?;
+    if !opened {
+        app.opener()
+            .open_path(path.display().to_string(), None::<&str>)
+            .map_err(err)?;
+    }
     Ok(path.display().to_string())
 }
 
