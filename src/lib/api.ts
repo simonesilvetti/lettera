@@ -51,6 +51,7 @@ export const api = {
   enableImages: (message_id: number) => invoke<void>('enable_images', { message_id }),
   suggestContacts: (query: string) => invoke<Addr[]>('suggest_contacts', { query }),
   appInfo: () => invoke<AppInfo>('app_info'),
+  quit: () => invoke<void>('quit'),
 };
 
 export interface Events {
@@ -59,6 +60,7 @@ export interface Events {
   'theme:changed': ThemePayload;
   new_mail: { account: string; items: { id: number; thread_id: string; from: string; subject: string }[] };
   open_message: { account: string; id: number };
+  'tray:compose': null;
   'auth:done': { email: string; ok: boolean; error: string | null };
   'body:ready': { id: number };
   'accounts:changed': Record<string, never>;

@@ -549,6 +549,15 @@ async function saveDraftNow() {
   await saveDraft();
 }
 
+/** Saves the draft and goes back to the list; `c`, `r`, `a`, `f` resume it. */
+export async function keepDraft() {
+  if (!app.draft) return;
+  await saveDraftNow();
+  if (app.draftDirty) return; // not saved: the error is on screen, stay here
+  leaveCompose();
+  flash('draft saved');
+}
+
 export async function attach() {
   if (!app.draft) return;
   const files = await api.pickFiles();
@@ -621,5 +630,8 @@ export async function start() {
   });
   await on('accounts:changed', () => void loadAccounts());
   await on('open_message', ({ account, id }) => void openMessage(account, id));
+  await on('tray:compose', () => {
+    if (app.screen === 'inbox') void compose('new');
+  });
   await loadAccounts();
 }

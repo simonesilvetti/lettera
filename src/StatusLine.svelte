@@ -28,7 +28,7 @@
   const hints = $derived.by((): Hint[] => {
     if (app.screen === 'compose') {
       if (app.confirmDiscard) return [hint('cancel', 'again to discard')];
-      const list = [hint('send'), hint('attach')];
+      const list = [hint('send'), hint('save-draft', 'save & close'), hint('attach')];
       list.push(hint('bcc'));
       if (app.draft?.quote) list.push(hint('quote', app.draftQuote ? 'hide quote' : 'show quote'));
       list.push(hint('cancel'));

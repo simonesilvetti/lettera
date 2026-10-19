@@ -18,6 +18,11 @@ finish-args:
   # passwords and tokens in the keyring (Secret Service), notifications
   - --talk-name=org.freedesktop.secrets
   - --talk-name=org.freedesktop.Notifications
+  # tray icon (StatusNotifierItem); closing the window keeps lettera there
+  - --talk-name=org.kde.StatusNotifierWatcher
+  # start with the session: writes ~/.config/autostart/lettera.desktop
+  # (`autostart` in the config); this desktop has no Background portal
+  - --filesystem=xdg-config/autostart:create
   # Omarchy theme, read and watched read-only
   - --filesystem=~/.config/omarchy:ro
   - --filesystem=~/.local/state/omarchy:ro

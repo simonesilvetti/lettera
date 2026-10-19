@@ -21,6 +21,9 @@ pub struct Config {
     /// Appended to new messages, replies and forwards (after a "-- " line).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
+    /// Start hidden in the tray with the desktop session (see [`crate::autostart`]).
+    #[serde(default = "default_autostart")]
+    pub autostart: bool,
     #[serde(default)]
     pub accounts: Vec<AccountConfig>,
 }
@@ -33,6 +36,7 @@ impl Default for Config {
             font_size: default_font_size(),
             sync_months: default_sync_months(),
             signature: None,
+            autostart: default_autostart(),
             accounts: Vec::new(),
         }
     }
@@ -49,6 +53,9 @@ fn default_font_size() -> u32 {
 }
 fn default_sync_months() -> u32 {
     48
+}
+fn default_autostart() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -285,6 +292,7 @@ theme = "auto"            # auto | omarchy | dark | light
 font = "JetBrains Mono"   # any installed monospace font
 font_size = 13            # interface size in px; message bodies are 1px larger
 sync_months = 48          # months of mail kept in sync, by arrival date (0 = all of it)
+autostart = true          # start with the desktop session, hidden in the tray (false = only when opened)
 
 # Signature added to new messages, replies and forwards, after a "-- " line.
 # Each account can override it with its own `signature` ("" = none).

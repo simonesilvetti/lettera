@@ -65,7 +65,7 @@ flatpak install --user lettera.flatpak
 flatpak run app.lettera.desktop
 ```
 
-This needs `flatpak` with the Flathub remote; the recipe uses `org.flatpak.Builder` and fetches GNOME 51, Rust and Node for the build by itself. Inside the sandbox, config and database live in `~/.var/app/app.lettera.desktop/` (separate from a native install); the app can read the Omarchy theme, use the keyring and notifications, and save or attach files from Downloads, Documents, Pictures and Desktop.
+This needs `flatpak` with the Flathub remote; the recipe uses `org.flatpak.Builder` and fetches GNOME 51, Rust and Node for the build by itself. Inside the sandbox, config and database live in `~/.var/app/app.lettera.desktop/` (separate from a native install); the app can read the Omarchy theme, use the keyring, notifications and the tray, write its own entry in `~/.config/autostart`, and save or attach files from Downloads, Documents, Pictures and Desktop.
 
 For development: `just dev` (window with live reload), `just test`, `just lint`, `just fmt`.
 
@@ -113,11 +113,13 @@ client_secret = "GOCSPX-…"
 # Gmail hosts and ports are built in; the refresh token lives in the keyring
 ```
 
-Top-level options (`theme`, `font`, `font_size`, `sync_months`, `signature`) must come before the first `[[accounts]]` line: in TOML, everything after a table header belongs to that table.
+Top-level options (`theme`, `font`, `font_size`, `sync_months`, `autostart`, `signature`) must come before the first `[[accounts]]` line: in TOML, everything after a table header belongs to that table.
 
 The **signature** is added to every new message, reply and forward, after a `-- ` line (the standard separator many clients recognise); the cursor starts above it, and it can be edited or removed in each message. Multi-line strings go between `"""`.
 
 **`sync_months`** limits sync to messages that arrived in the last N months, in every folder: older ones are never downloaded (not even their headers) and stay on the server only. As months go by the window moves forward and messages that fall out of it disappear from the local database, never from the server. Changing the value resyncs the account right away; widening the window brings older mail in.
+
+**`autostart`** (on by default) starts lettera with the desktop session, hidden in the tray, so notifications arrive without opening it: lettera writes `~/.config/autostart/lettera.desktop` and removes it as soon as you set `autostart = false`. Only the Flatpak and packaged installs (`/usr`, `/opt`) manage that file; development builds never do. Linux only.
 
 Secrets are stored in the keyring under `lettera/<email>` (service `lettera`, user `<email>`). The local database is `~/.local/share/lettera/lettera.db`.
 
@@ -158,6 +160,10 @@ Notes:
 - for Google Workspace accounts the administrator must allow IMAP access and third-party OAuth apps;
 - archiving on Gmail removes the message from INBOX and leaves it in *All Mail*; deleting moves it to *Trash*. This works with Gmail's default IMAP settings (“when a message is deleted from the last visible IMAP folder: archive the message”).
 
+## In the background
+
+Closing the window does not quit lettera: it stays in the tray, keeps syncing and keeps showing notifications. Left-click the tray icon to bring the window back; right-click it for *Open lettera*, *Compose email*, *Open config file* and *Quit*. `quit` in the palette exits too. Launching lettera again while it runs shows the existing window. If the desktop has no tray (no StatusNotifierItem host), closing the window quits as usual.
+
 ## The message list
 
 Each row shows sender (with the thread's message count), subject and date. Small muted marks:
@@ -194,7 +200,9 @@ The same `›` and paperclip appear on each message inside an open conversation.
 | `⌃1` … `⌃9` | switch account |
 | `R` | sync now |
 
-The pane with focus has the accent-colored bar (selected row or current message); the other one keeps a muted bar. `⌃` is the Ctrl key (Cmd on macOS). While composing: `⌃⏎` send · `⌃a` attach (click an attachment's name to remove it) · `⌃b` show the bcc field · `⌃q` show the quote · `esc` close (with unsaved changes it asks for a second `esc` and discards the draft). Drafts save themselves every 5 seconds and come back when you press `c` again (or `r`/`a`/`f` on the same message).
+The column on the left holds inbox, drafts, sent and archive: click an icon to open that folder (same as `g i`, `g d`, `g s`, `g a`).
+
+The pane with focus has the accent-colored bar (selected row or current message); the other one keeps a muted bar. `⌃` is the Ctrl key (Cmd on macOS). While composing: `⌃⏎` send · `⌃s` save the draft and go back to the list · `⌃a` attach (click an attachment's name to remove it) · `⌃b` show the bcc field · `⌃q` show the quote · `esc` close (with unsaved changes it asks for a second `esc` and discards the draft). Drafts save themselves every 5 seconds and come back when you press `c` again (or `r`/`a`/`f` on the same message). They are kept locally, one new draft per account: they do not appear in the server's Drafts folder.
 
 No shortcut fires while you type in a field, except `esc` and `⌃` combinations. Every command, including those without a key (`move to…`, `go to folder…`, `switch account…`, `open config`, `enable images`, `info`…), is in the palette.
 

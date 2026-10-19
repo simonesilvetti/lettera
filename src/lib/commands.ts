@@ -16,6 +16,7 @@ import {
   flash,
   folderLabel,
   goToRole,
+  keepDraft,
   markRead,
   moveCursor,
   moveSelection,
@@ -245,6 +246,7 @@ export const commands: Command[] = [
     },
   },
   { id: 'info', label: 'info', scope: 'global', run: showInfo },
+  { id: 'quit', label: 'quit', alias: 'exit close', scope: 'global', run: api.quit },
   { id: 'palette', label: 'commands', shortcut: ':', keys: [':'], scope: 'mail', hidden: true, run: () => openPalette() },
 
   // ------------------------------------------------------------------ search
@@ -297,6 +299,7 @@ export const commands: Command[] = [
     when: () => !!app.draft?.quote,
     run: () => (app.draftQuote = !app.draftQuote),
   },
+  { id: 'save-draft', label: 'save draft', alias: 'later', shortcut: '⌃s', keys: ['ctrl+s'], scope: 'compose', run: keepDraft },
   { id: 'cancel', label: 'cancel', shortcut: 'esc', keys: ['escape'], scope: 'compose', run: cancelCompose },
 
   // ------------------------------------------------------------------ palette

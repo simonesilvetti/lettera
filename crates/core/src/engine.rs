@@ -745,6 +745,15 @@ impl Engine {
         &self.inner.db
     }
 
+    /// The config as last loaded.
+    pub fn config(&self) -> Config {
+        self.inner
+            .config
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+
     pub fn config_path(&self) -> PathBuf {
         self.inner.paths.config_file.clone()
     }

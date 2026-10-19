@@ -107,6 +107,12 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - OAuth with `access_type=offline`, `prompt=consent` and `login_hint`, to always get a refresh token for the right email.
 - The add form suggests `imap.` and `smtp.` of the email's domain; the TLS mode follows the port but can be switched with a click.
 - Notifications are sent by the Rust process, only for unread messages that arrived through IDLE; one per sync ("N new messages" when several arrive together), with the app icon (written to the data dir so the daemon can read it). On Linux they go through `notify-rust` directly, because the Tauri plugin has no click events there: clicking raises the window and opens that message in its INBOX (`open_message` event).
+- Closing the window hides it while the tray icon is there, so sync and notifications go on; *Quit* in the tray menu (or `quit` in the palette) exits. Without a tray host, closing quits. Left click on the icon shows the window, right click opens *Open lettera / Compose email / Open config file / Quit*.
+- On Linux the tray icon is a StatusNotifierItem via `ksni`, not Tauri's tray: libappindicator never reports a left click. Tauri's tray is used on the other platforms.
+- One instance (`tauri-plugin-single-instance`): a second launch shows the running window. Off in debug builds and with `LETTERA_HOME`, so development copies stay independent.
+- `autostart = true` by default: lettera writes `~/.config/autostart/lettera.desktop` (started with `--hidden`) and removes it when set to false, live on config reload. Only the Flatpak and binaries under `/usr` or `/opt` manage it, never development builds; the Flatpak writes it itself (`xdg-config/autostart:create`) because Omarchy has no Background portal.
+- Left column with four folder icons (inbox, drafts, sent, archive), Tabler outline icons that tilt 6° and turn accent on hover, like the links on simonesilvetti.com; asked for by the user, the second exception to "no icons" after the paperclip.
+- `⌃s` in compose saves the draft and goes back to the list.
 
 ## Packaging and identity
 

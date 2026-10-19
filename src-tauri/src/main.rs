@@ -2,9 +2,12 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod tray;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use lettera_core::autostart;
 use lettera_core::config::Paths;
 use lettera_core::events::EventSink;
 use lettera_core::model::{
@@ -51,13 +54,18 @@ fn notification_text(items: &[serde_json::Value]) -> (String, String) {
     }
 }
 
-/// Brings the window to the front and asks the UI to open a message.
-fn open_from_notification(app: &AppHandle, account: &str, id: i64) {
+/// Shows the main window (also when hidden in the tray) and brings it to the front.
+pub(crate) fn show_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
     }
+}
+
+/// Brings the window to the front and asks the UI to open a message.
+fn open_from_notification(app: &AppHandle, account: &str, id: i64) {
+    show_window(app);
     let _ = app.emit(
         "open_message",
         serde_json::json!({ "account": account, "id": id }),
@@ -120,6 +128,10 @@ impl EventSink for Sink {
     fn emit(&self, name: &str, payload: serde_json::Value) {
         if name == "new_mail" {
             self.notify(&payload);
+        }
+        // emitted on every config change, among others
+        if name == "accounts:changed" {
+            sync_autostart(&self.app);
         }
         if let Err(e) = self.app.emit(name, payload) {
             tracing::warn!("emit {name}: {e}");
@@ -311,9 +323,9 @@ fn open_with_gio(path: &std::path::Path) -> bool {
     }
 }
 
-#[tauri::command(rename_all = "snake_case")]
-async fn open_config(app: AppHandle, engine: State<'_, Engine>) -> Res<String> {
-    let path = engine.ensure_config_file().map_err(err)?;
+/// Opens the config file in the user's editor (creating it if needed).
+pub(crate) async fn open_config_file(app: &AppHandle) -> Res<PathBuf> {
+    let path = app.state::<Engine>().ensure_config_file().map_err(err)?;
     let p = path.clone();
     let opened = tauri::async_runtime::spawn_blocking(move || open_with_gio(&p))
         .await
@@ -323,7 +335,55 @@ async fn open_config(app: AppHandle, engine: State<'_, Engine>) -> Res<String> {
             .open_path(path.display().to_string(), None::<&str>)
             .map_err(err)?;
     }
-    Ok(path.display().to_string())
+    Ok(path)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+async fn open_config(app: AppHandle) -> Res<String> {
+    Ok(open_config_file(&app).await?.display().to_string())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn quit(app: AppHandle) {
+    app.exit(0);
+}
+
+/// How this installation starts hidden from the session's autostart, if it
+/// should be there at all: the Flatpak or a packaged binary under /usr or
+/// /opt. Development builds and isolated runs (`LETTERA_HOME`) never touch it.
+fn autostart_command() -> Option<Vec<String>> {
+    if !cfg!(target_os = "linux") || std::env::var_os("LETTERA_HOME").is_some() {
+        return None;
+    }
+    if let Ok(id) = std::env::var("FLATPAK_ID") {
+        return Some(vec![
+            "flatpak".into(),
+            "run".into(),
+            id,
+            autostart::HIDDEN_FLAG.into(),
+        ]);
+    }
+    let exe = std::env::current_exe().ok()?;
+    (exe.starts_with("/usr") || exe.starts_with("/opt"))
+        .then(|| vec![exe.display().to_string(), autostart::HIDDEN_FLAG.into()])
+}
+
+/// Adds or removes the autostart entry to match `autostart` in the config.
+fn sync_autostart(app: &AppHandle) {
+    let Some(engine) = app.try_state::<Engine>() else {
+        return;
+    };
+    let (Some(command), Some(dir)) = (autostart_command(), autostart::dir()) else {
+        return;
+    };
+    let enabled = engine.config().autostart;
+    let icon = std::env::var("FLATPAK_ID").unwrap_or_else(|_| "lettera".into());
+    match autostart::apply(&dir, enabled, &command, &icon) {
+        Ok(true) if enabled => tracing::info!("autostart entry written in {}", dir.display()),
+        Ok(true) => tracing::info!("autostart entry removed"),
+        Ok(false) => {}
+        Err(e) => tracing::warn!("autostart: {e}"),
+    }
 }
 
 /// Only web and mail links leave the app: never `file:`, `javascript:`,
@@ -387,11 +447,23 @@ fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    tauri::Builder::default()
+    let hidden = std::env::args().any(|a| a == autostart::HIDDEN_FLAG);
+    let mut builder = tauri::Builder::default();
+    // A second launch shows the running window instead of starting another
+    // sync engine on the same database. Development and isolated runs
+    // (`LETTERA_HOME`) stay independent of an installed lettera.
+    if !cfg!(debug_assertions) && std::env::var_os("LETTERA_HOME").is_none() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !args.iter().any(|a| a == autostart::HIDDEN_FLAG) {
+                show_window(app);
+            }
+        }));
+    }
+    builder
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
+        .setup(move |app| {
             let handle = app.handle().clone();
             let tauri::async_runtime::RuntimeHandle::Tokio(rt) = tauri::async_runtime::handle();
             let opener_app = handle.clone();
@@ -407,7 +479,28 @@ fn main() -> anyhow::Result<()> {
             };
             let engine = Engine::start(rt, paths, Arc::new(sink), opener)?;
             app.manage(engine);
+            sync_autostart(app.handle());
+            // the window is created hidden; it stays so only when started from
+            // autostart and the tray icon can bring it back
+            if !hidden {
+                show_window(app.handle());
+            }
+            let window_app = app.handle().clone();
+            tray::start(app.handle(), move |ok| {
+                if hidden && !ok {
+                    show_window(&window_app);
+                }
+            });
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // with the tray icon, closing only hides: sync and notifications go on
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if tray::ready() {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             list_accounts,
@@ -436,6 +529,7 @@ fn main() -> anyhow::Result<()> {
             enable_images,
             suggest_contacts,
             app_info,
+            quit,
         ])
         .run(tauri::generate_context!())?;
     Ok(())

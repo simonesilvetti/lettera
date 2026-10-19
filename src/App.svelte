@@ -5,6 +5,7 @@
   import Compose from './Compose.svelte';
   import MessageList from './MessageList.svelte';
   import Palette from './Palette.svelte';
+  import Rail from './Rail.svelte';
   import StatusLine from './StatusLine.svelte';
   import Thread from './Thread.svelte';
   import { handleKey } from './lib/keys';
@@ -106,21 +107,24 @@
       {/if}
       <span class="muted ellipsis">{app.account}</span>
     </header>
-    <main bind:clientWidth={mainWidth} style:--list-width="{listWidth}px">
-      <MessageList />
-      <!-- drag to resize the list; double-click restores the default width -->
-      <div
-        class="splitter"
-        class:dragging
-        role="separator"
-        aria-orientation="vertical"
-        aria-valuenow={listWidth}
-        tabindex="-1"
-        onpointerdown={startDrag}
-        ondblclick={() => setListWidth(DEFAULT_LIST)}
-      ></div>
-      <Thread />
-    </main>
+    <div class="body">
+      <Rail />
+      <main bind:clientWidth={mainWidth} style:--list-width="{listWidth}px">
+        <MessageList />
+        <!-- drag to resize the list; double-click restores the default width -->
+        <div
+          class="splitter"
+          class:dragging
+          role="separator"
+          aria-orientation="vertical"
+          aria-valuenow={listWidth}
+          tabindex="-1"
+          onpointerdown={startDrag}
+          ondblclick={() => setListWidth(DEFAULT_LIST)}
+        ></div>
+        <Thread />
+      </main>
+    </div>
     <StatusLine />
   {/if}
 </div>
@@ -184,8 +188,15 @@
     color: var(--accent);
   }
 
+  .body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
   main {
     flex: 1;
+    min-width: 0;
     display: flex;
     min-height: 0;
     position: relative;

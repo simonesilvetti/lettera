@@ -1,5 +1,6 @@
 //! Lettera core: everything that is not UI. No Tauri types in here.
 
+pub mod autostart;
 pub mod config;
 pub mod db;
 pub mod engine;
