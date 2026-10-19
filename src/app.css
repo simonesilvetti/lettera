@@ -69,6 +69,14 @@ button {
   text-align: left;
 }
 
+/* The app draws its own position (selected row, current message, palette
+   item); the browser's focus ring on a clicked button would linger on a
+   reused list row as two stray blue bands. */
+button:focus,
+[role='separator']:focus {
+  outline: none;
+}
+
 input,
 textarea {
   font: inherit;
