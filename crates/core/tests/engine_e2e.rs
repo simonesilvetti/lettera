@@ -191,29 +191,62 @@ async fn engine_end_to_end() {
         fresh.id.is_none() && fresh.to.is_empty(),
         "c starts a new message"
     );
-    nd.body = "seconda versione".into();
-    let nd = engine.store_draft(nd).await.expect("store again");
-    // one copy left, the one of the second store (edit_draft finds the local
-    // draft only through that copy's Message-ID)
-    let start = Instant::now();
-    let copy = loop {
+    let row = engine.list_threads(drafts.id, "", 0, 10).unwrap().items[0].ids[0];
+
+    // edit → esc → edit, quickly: nothing waits for the server. Reopening
+    // finds the local draft, storing shows the new version (body included)
+    // in the same row at once, so an open thread stays valid.
+    let fast = Duration::from_millis(50);
+    for i in 2..=4 {
+        let t = Instant::now();
+        let mut d = engine.edit_draft(row).await.expect("edit draft");
+        assert!(t.elapsed() < fast, "edit_draft took {:?}", t.elapsed());
+        assert_eq!(d.id, nd.id, "the local draft, not a rebuild");
+        d.body = format!("versione {i}");
+        let t = Instant::now();
+        nd = engine.store_draft(d).await.expect("store draft");
+        assert!(t.elapsed() < fast, "store_draft took {:?}", t.elapsed());
+        let t = Instant::now();
         let page = engine.list_threads(drafts.id, "", 0, 10).unwrap();
-        if page.total == 1 {
-            let id = page.items[0].ids[0];
-            if let Ok(d) = engine.edit_draft(id).await {
-                if d.message_id == nd.message_id {
-                    break (id, d);
-                }
-            }
+        assert_eq!(page.total, 1);
+        assert_eq!(page.items[0].ids, vec![row]);
+        let body = engine.get_body(row, "text").unwrap();
+        assert!(body.ready, "no loading after esc");
+        assert!(body.blocks[0].text.contains(&format!("versione {i}")));
+        assert!(t.elapsed() < fast, "reading back took {:?}", t.elapsed());
+    }
+
+    // the server catches up: one copy, the last one, in the same row
+    let mut check = imap::connect(&ep, &creds).await.expect("check login");
+    let start = Instant::now();
+    loop {
+        check.select("Drafts").await.unwrap();
+        let on_server = check.fetch_headers("1:*").await.unwrap();
+        let ids: Vec<String> = on_server
+            .iter()
+            .map(|m| lettera_core::parse::parse_envelope(&m.header).message_id)
+            .collect();
+        let page = engine.list_threads(drafts.id, "", 0, 10).unwrap();
+        if ids.len() == 1
+            && Some(&ids[0]) == nd.message_id.as_ref()
+            && page.total == 1
+            && page.items[0].ids == vec![row]
+        {
+            break;
         }
         assert!(
             start.elapsed() < Duration::from_secs(30),
-            "timeout: draft replaced"
+            "timeout: server copy {ids:?}"
         );
         tokio::time::sleep(Duration::from_millis(200)).await;
-    };
-    assert_eq!(copy.1.id, nd.id, "the local draft is reopened");
-    assert_eq!(copy.1.body, "seconda versione");
+    }
+    // settled: still the same draft in the same row, body kept
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert!(engine.get_body(row, "text").unwrap().ready);
+    let again = engine.edit_draft(row).await.unwrap();
+    assert_eq!(again.id, nd.id);
+    assert_eq!(again.body, "versione 4");
+    let copy = (row, again);
     // without the local row (another client's draft): rebuilt from the message
     engine
         .save_draft(&Draft {
@@ -227,7 +260,7 @@ async fn engine_end_to_end() {
     assert!(rebuilt.to.contains("anna@esempio.it"));
     assert!(rebuilt.bcc.contains("nascosto@esempio.it"));
     assert_eq!(rebuilt.subject, "Bozza di prova");
-    assert!(rebuilt.body.contains("seconda versione"));
+    assert!(rebuilt.body.contains("versione 4"));
     engine
         .discard_draft(&Draft {
             id: nd.id,

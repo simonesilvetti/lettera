@@ -66,6 +66,9 @@ enum Action {
         raw: Option<Vec<u8>>,
         remove: Vec<String>,
         trash: Option<String>,
+        /// Server UIDs of the removed copies, already gone locally:
+        /// (folder id, uids), held back from sync until this is done.
+        pending: Option<(i64, Vec<u32>)>,
     },
     Raw {
         folder: String,
@@ -504,6 +507,7 @@ impl Inner {
                 raw,
                 remove,
                 trash,
+                ..
             } => {
                 if *create {
                     let _ = c.create(folder).await;
@@ -548,6 +552,10 @@ impl Inner {
         match a {
             Action::Move { from, uids, .. } => self.set_pending(from.id, uids, false),
             Action::Expunge { folder, uids } => self.set_pending(folder.id, uids, false),
+            Action::Draft {
+                pending: Some((folder, uids)),
+                ..
+            } => self.set_pending(*folder, uids, false),
             _ => {}
         }
     }
@@ -1300,7 +1308,25 @@ impl Engine {
         d.message_id = Some(message_id);
         d.id = Some(self.inner.db.save_draft(&d)?);
         d.saved_at = Some(chrono::Utc::now().timestamp());
-        self.draft_action(&acc, Some(raw), old.into_iter().collect())?;
+        // the Drafts folder shows the new version at once; the server catches up
+        let account_id = self.inner.db.account_id(&acc.email)?;
+        let mut pending = None;
+        if let Some(folder) = self.inner.db.folder_by_role(account_id, "drafts")? {
+            let (id, uids) = self.inner.db.put_draft_copy(
+                account_id,
+                folder.id,
+                old.as_deref(),
+                &parse::parse_envelope(&raw),
+                "\\Seen \\Draft",
+                raw.len() as u32,
+                &parse::parse_body(&raw),
+            )?;
+            self.inner.set_pending(folder.id, &uids, true);
+            pending = Some((folder.id, uids));
+            self.changed(&acc.email, folder.id);
+            self.inner.emit(Event::BodyReady { id });
+        }
+        self.draft_action(&acc, Some(raw), old.into_iter().collect(), pending)?;
         Ok(d)
     }
 
@@ -1311,7 +1337,15 @@ impl Engine {
         }
         if let Some(mid) = &d.message_id {
             let acc = self.inner.account(&d.account)?;
-            self.draft_action(&acc, None, vec![mid.clone()])?;
+            let account_id = self.inner.db.account_id(&acc.email)?;
+            let mut pending = None;
+            if let Some(folder) = self.inner.db.folder_by_role(account_id, "drafts")? {
+                let uids = self.inner.db.remove_draft_copy(folder.id, mid)?;
+                self.inner.set_pending(folder.id, &uids, true);
+                pending = Some((folder.id, uids));
+                self.changed(&acc.email, folder.id);
+            }
+            self.draft_action(&acc, None, vec![mid.clone()], pending)?;
         }
         Ok(())
     }
@@ -1387,6 +1421,7 @@ impl Engine {
         acc: &AccountConfig,
         raw: Option<Vec<u8>>,
         remove: Vec<String>,
+        pending: Option<(i64, Vec<u32>)>,
     ) -> Result<()> {
         if raw.is_none() && remove.is_empty() {
             return Ok(());
@@ -1411,15 +1446,20 @@ impl Engine {
         } else {
             None
         };
+        let held = pending.clone();
         let action = Action::Draft {
             folder,
             create,
             raw,
             remove,
             trash,
+            pending,
         };
         if let Err(e) = self.inner.act(&acc.email, action) {
             tracing::warn!("draft copy for {}: {e}", acc.email);
+            if let Some((folder, uids)) = held {
+                self.inner.set_pending(folder, &uids, false);
+            }
         }
         Ok(())
     }

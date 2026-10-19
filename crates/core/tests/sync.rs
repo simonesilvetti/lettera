@@ -3,7 +3,8 @@ mod common;
 use std::collections::HashSet;
 
 use common::{fixture, MockFolder, MockImap};
-use lettera_core::db::Db;
+use lettera_core::db::{Db, LOCAL_UID_BASE};
+use lettera_core::parse;
 use lettera_core::sync;
 
 fn server() -> MockImap {
@@ -379,5 +380,94 @@ async fn attachments_shared_between_copies() {
     assert_eq!(
         atts[0].message_id, inbox_copy,
         "saving uses the downloaded copy"
+    );
+}
+
+fn draft_raw(id: &str, body: &str) -> Vec<u8> {
+    format!(
+        "Message-ID: <{id}>\r\nFrom: Marco <marco@esempio.it>\r\nTo: anna@esempio.it\r\n\
+         Subject: Bozza {body}\r\nDate: Mon, 19 Oct 2026 10:00:00 +0200\r\n\
+         Content-Type: text/plain; charset=utf-8\r\n\r\n{body}\r\n"
+    )
+    .into_bytes()
+}
+
+#[tokio::test]
+async fn draft_copy_is_local_at_once_then_takes_the_server_uid() {
+    let (db, acc) = setup();
+    let mut s = server();
+    let mut drafts = MockFolder::new(3);
+    drafts.attributes = vec!["\\drafts".into()];
+    drafts.add(draft_raw("v1@esempio.it", "uno"), "\\Seen \\Draft");
+    s.folders.insert("Drafts".into(), drafts);
+    let folders = sync::sync_folder_list(&mut s, &db, acc).await.unwrap();
+    let f = folders
+        .iter()
+        .find(|f| f.role.as_deref() == Some("drafts"))
+        .unwrap()
+        .clone();
+    let none = HashSet::new();
+    sync::sync_folder(&mut s, &db, &f, &none).await.unwrap();
+    let first = db
+        .list_threads(f.id, "", 0, 10, chrono::Local::now())
+        .unwrap();
+    let row = first.items[0].ids[0];
+
+    // the new version replaces the old one locally, same row id, body included
+    let raw = draft_raw("v2@esempio.it", "due");
+    let (id, held) = db
+        .put_draft_copy(
+            acc,
+            f.id,
+            Some("v1@esempio.it"),
+            &parse::parse_envelope(&raw),
+            "\\Seen \\Draft",
+            raw.len() as u32,
+            &parse::parse_body(&raw),
+        )
+        .unwrap();
+    assert_eq!(id, row, "an open thread keeps pointing at the draft");
+    assert_eq!(held, vec![1]);
+    let m = db.message(id).unwrap();
+    assert_eq!(m.message_id, "v2@esempio.it");
+    assert!(m.uid >= LOCAL_UID_BASE);
+    assert!(db.body(id).unwrap().unwrap().0.contains("due"));
+
+    // the server has not caught up: the local copy stays, the old one stays out
+    let f = db.folder(f.id).unwrap();
+    let skip: HashSet<u32> = held.into_iter().collect();
+    sync::sync_folder(&mut s, &db, &f, &skip).await.unwrap();
+    let page = db
+        .list_threads(f.id, "", 0, 10, chrono::Local::now())
+        .unwrap();
+    assert_eq!(page.total, 1);
+    assert_eq!(page.items[0].subject, "Bozza due");
+
+    // APPEND + removal done: the row takes the real UID and keeps its body
+    let d = s.folders.get_mut("Drafts").unwrap();
+    d.messages.clear();
+    let uid = d.add(raw.clone(), "\\Seen \\Draft");
+    let r = sync::sync_folder(&mut s, &db, &f, &none).await.unwrap();
+    assert!(r.new_ids.is_empty(), "not new mail");
+    let m = db.message(id).unwrap();
+    assert_eq!(m.uid, uid);
+    assert!(db.body(id).unwrap().is_some());
+    assert_eq!(
+        db.list_threads(f.id, "", 0, 10, chrono::Local::now())
+            .unwrap()
+            .total,
+        1
+    );
+
+    // discarded: gone locally at once, its UID held back
+    assert_eq!(
+        db.remove_draft_copy(f.id, "v2@esempio.it").unwrap(),
+        vec![uid]
+    );
+    assert_eq!(
+        db.list_threads(f.id, "", 0, 10, chrono::Local::now())
+            .unwrap()
+            .total,
+        0
     );
 }

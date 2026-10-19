@@ -1,6 +1,6 @@
 //! Incremental sync of one account, generic over [`ImapClient`].
 
-use crate::db::{Db, FolderRow, MessageRow};
+use crate::db::{Db, FolderRow, MessageRow, LOCAL_UID_BASE};
 use crate::error::Result;
 use crate::imap::{folder_role, is_selectable, ImapClient};
 use crate::parse;
@@ -92,7 +92,11 @@ pub async fn sync_folder_since<C: ImapClient>(
     let local = db.uid_flags(folder.id)?;
     if status.exists == 0 {
         if !local.is_empty() {
-            let gone: Vec<u32> = local.iter().map(|(u, _)| *u).collect();
+            let gone: Vec<u32> = local
+                .iter()
+                .map(|(u, _)| *u)
+                .filter(|u| *u < LOCAL_UID_BASE)
+                .collect();
             out.changed |= db.reconcile(folder.id, &[], &gone)?;
         }
         db.set_folder_state(
@@ -140,9 +144,10 @@ pub async fn sync_folder_since<C: ImapClient>(
         .filter(|(u, _)| local_uids.contains(u))
         .cloned()
         .collect();
+    // local draft copies are not on the server yet: not gone
     let gone: Vec<u32> = local_uids
         .iter()
-        .filter(|u| !server_uids.contains(u))
+        .filter(|u| !server_uids.contains(u) && **u < LOCAL_UID_BASE)
         .copied()
         .collect();
     out.changed |= db.reconcile(folder.id, &flags, &gone)?;

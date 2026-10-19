@@ -13,6 +13,10 @@ use crate::model::{
 use crate::parse::{Envelope, ParsedBody};
 use crate::thread;
 
+/// UIDs from here up mark a local copy of a draft whose server copy has not
+/// been seen yet. Servers hand out UIDs from 1 upwards: they never get here.
+pub const LOCAL_UID_BASE: u32 = 0xFFF0_0000;
+
 const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql")];
 
 pub struct Db {
@@ -351,38 +355,25 @@ impl Db {
         let tx = c.transaction()?;
         let mut ids = Vec::with_capacity(items.len());
         for (uid, env, flags, size) in items {
-            let thread = thread::assign(&tx, account_id, env)?;
-            let changed = tx.execute(
-                "INSERT OR IGNORE INTO messages (account_id, folder_id, uid, message_id, in_reply_to, refs,
-                    from_name, from_addr, reply_to, to_addrs, cc_addrs, subject, subject_norm, date, flags,
-                    size, has_attachments, thread_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
-                params![
-                    account_id,
-                    folder_id,
-                    uid,
-                    env.message_id,
-                    env.in_reply_to,
-                    env.references.join(" "),
-                    env.from.name,
-                    env.from.addr.to_lowercase(),
-                    json_addrs(&env.reply_to),
-                    json_addrs(&env.to),
-                    json_addrs(&env.cc),
-                    env.subject,
-                    thread::normalize_subject(&env.subject),
-                    env.date,
-                    flags,
-                    size,
-                    env.has_attachments,
-                    thread
-                ],
+            // the server copy of a draft stored from here: the local row
+            // (with its body) takes the real UID
+            let upgraded = tx.execute(
+                "UPDATE messages SET uid = ?3, flags = ?4, size = ?5
+                 WHERE folder_id = ?1 AND message_id = ?2 AND uid >= ?6",
+                params![folder_id, env.message_id, uid, flags, size, LOCAL_UID_BASE],
             )?;
-            if changed == 0 {
+            if upgraded > 0 {
                 continue;
             }
+            let thread = thread::assign(&tx, account_id, env)?;
+            let Some(id) = insert_row(
+                &tx, None, account_id, folder_id, *uid, env, flags, *size, &thread,
+            )?
+            else {
+                continue;
+            };
             thread::adopt_children(&tx, account_id, &env.message_id, &thread)?;
-            ids.push(tx.last_insert_rowid());
+            ids.push(id);
         }
         tx.commit()?;
         Ok(ids)
@@ -636,27 +627,82 @@ impl Db {
     pub fn store_body(&self, id: i64, body: &ParsedBody) -> Result<()> {
         let mut c = self.lock();
         let tx = c.transaction()?;
-        tx.execute(
-            "INSERT OR REPLACE INTO bodies (message_id, text, html) VALUES (?1, ?2, ?3)",
-            params![id, body.text, body.html],
-        )?;
-        tx.execute("DELETE FROM attachments WHERE message_id = ?1", [id])?;
-        for a in &body.attachments {
-            tx.execute(
-                "INSERT INTO attachments (message_id, part_index, filename, mime, size) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![id, a.index, a.filename, a.mime, a.size as i64],
-            )?;
-        }
-        tx.execute(
-            "UPDATE messages SET snippet = ?2, has_attachments = ?3 WHERE id = ?1",
-            params![id, body.snippet, !body.attachments.is_empty()],
-        )?;
-        tx.execute(
-            "UPDATE messages_fts SET body = ?2 WHERE rowid = ?1",
-            params![id, body.text],
-        )?;
+        write_body(&tx, id, body)?;
         tx.commit()?;
         Ok(())
+    }
+
+    /// Puts the new version of a draft in the Drafts folder right away, before
+    /// the server has it: it takes the place (and the row id, so an open
+    /// thread keeps pointing at it) of the copy with Message-ID `old`, with a
+    /// local UID and its body. Returns the row id and the server UIDs of the
+    /// replaced copies, which sync must not bring back while they are removed.
+    #[allow(clippy::too_many_arguments)]
+    pub fn put_draft_copy(
+        &self,
+        account_id: i64,
+        folder_id: i64,
+        old: Option<&str>,
+        env: &Envelope,
+        flags: &str,
+        size: u32,
+        body: &ParsedBody,
+    ) -> Result<(i64, Vec<u32>)> {
+        let mut c = self.lock();
+        let tx = c.transaction()?;
+        let mut replaced: Vec<(i64, u32, String)> = Vec::new();
+        if let Some(old) = old {
+            let mut stmt = tx.prepare(
+                "SELECT id, uid, thread_id FROM messages WHERE folder_id = ?1 AND message_id = ?2",
+            )?;
+            replaced = stmt
+                .query_map(params![folder_id, old], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+                })?
+                .collect::<rusqlite::Result<_>>()?;
+        }
+        for (id, _, _) in &replaced {
+            tx.execute("DELETE FROM messages WHERE id = ?1", [id])?;
+        }
+        let uid: u32 = tx.query_row(
+            "SELECT COALESCE(MAX(uid) + 1, ?2) FROM messages WHERE folder_id = ?1 AND uid >= ?2",
+            params![folder_id, LOCAL_UID_BASE],
+            |r| r.get(0),
+        )?;
+        let (keep, thread) = match replaced.first() {
+            Some((id, _, thread)) => (Some(*id), thread.clone()),
+            None => (None, thread::assign(&tx, account_id, env)?),
+        };
+        let id = insert_row(
+            &tx, keep, account_id, folder_id, uid, env, flags, size, &thread,
+        )?
+        .ok_or_else(|| Error::Other("draft copy not stored".into()))?;
+        if keep.is_none() {
+            thread::adopt_children(&tx, account_id, &env.message_id, &thread)?;
+        }
+        write_body(&tx, id, body)?;
+        tx.commit()?;
+        let server = replaced
+            .into_iter()
+            .map(|(_, u, _)| u)
+            .filter(|u| *u < LOCAL_UID_BASE)
+            .collect();
+        Ok((id, server))
+    }
+
+    /// Takes the copies with this Message-ID out of the Drafts folder right
+    /// away. Returns their server UIDs (see [`Db::put_draft_copy`]).
+    pub fn remove_draft_copy(&self, folder_id: i64, message_id: &str) -> Result<Vec<u32>> {
+        let c = self.lock();
+        let uids: Vec<u32> = c
+            .prepare("SELECT uid FROM messages WHERE folder_id = ?1 AND message_id = ?2")?
+            .query_map(params![folder_id, message_id], |r| r.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        c.execute(
+            "DELETE FROM messages WHERE folder_id = ?1 AND message_id = ?2",
+            params![folder_id, message_id],
+        )?;
+        Ok(uids.into_iter().filter(|u| *u < LOCAL_UID_BASE).collect())
     }
 
     /// Messages in a folder without a body, newest first, received after `since`.
@@ -890,4 +936,71 @@ impl Db {
             .collect::<rusqlite::Result<_>>()?;
         Ok(rows)
     }
+}
+
+/// Body, attachment list, snippet and full-text entry of a message.
+fn write_body(tx: &rusqlite::Transaction, id: i64, body: &ParsedBody) -> Result<()> {
+    tx.execute(
+        "INSERT OR REPLACE INTO bodies (message_id, text, html) VALUES (?1, ?2, ?3)",
+        params![id, body.text, body.html],
+    )?;
+    tx.execute("DELETE FROM attachments WHERE message_id = ?1", [id])?;
+    for a in &body.attachments {
+        tx.execute(
+            "INSERT INTO attachments (message_id, part_index, filename, mime, size) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, a.index, a.filename, a.mime, a.size as i64],
+        )?;
+    }
+    tx.execute(
+        "UPDATE messages SET snippet = ?2, has_attachments = ?3 WHERE id = ?1",
+        params![id, body.snippet, !body.attachments.is_empty()],
+    )?;
+    tx.execute(
+        "UPDATE messages_fts SET body = ?2 WHERE rowid = ?1",
+        params![id, body.text],
+    )?;
+    Ok(())
+}
+
+/// One envelope row; `id` reuses a row id. `None` if (folder, uid) exists.
+#[allow(clippy::too_many_arguments)]
+fn insert_row(
+    tx: &rusqlite::Transaction,
+    id: Option<i64>,
+    account_id: i64,
+    folder_id: i64,
+    uid: u32,
+    env: &Envelope,
+    flags: &str,
+    size: u32,
+    thread: &str,
+) -> Result<Option<i64>> {
+    let changed = tx.execute(
+        "INSERT OR IGNORE INTO messages (id, account_id, folder_id, uid, message_id, in_reply_to, refs,
+            from_name, from_addr, reply_to, to_addrs, cc_addrs, subject, subject_norm, date, flags,
+            size, has_attachments, thread_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
+        params![
+            id,
+            account_id,
+            folder_id,
+            uid,
+            env.message_id,
+            env.in_reply_to,
+            env.references.join(" "),
+            env.from.name,
+            env.from.addr.to_lowercase(),
+            json_addrs(&env.reply_to),
+            json_addrs(&env.to),
+            json_addrs(&env.cc),
+            env.subject,
+            thread::normalize_subject(&env.subject),
+            env.date,
+            flags,
+            size,
+            env.has_attachments,
+            thread
+        ],
+    )?;
+    Ok((changed > 0).then(|| tx.last_insert_rowid()))
 }

@@ -76,6 +76,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - The quote is kept apart from the body, hidden behind `⌃q` and always appended on send.
 - Signature from the config (`signature`, global or per account, "" = none): put in the draft body after `-- `, above the quote, so it can be seen and edited before sending.
 - Forwarding quotes the original text but does not carry its attachments.
+- Storing or discarding a draft changes the local Drafts folder at once (same row id, body included, a local UID ≥ `0xFFF0_0000` until sync sees the server copy and the row takes its UID): the composer never waits for the server.
 - `esc` in compose saves to the Drafts folder and closes (asked for by the user); a draft left blank or untouched is not stored. Discarding is `⌃d`, pressed twice.
 - `send` waits for SMTP delivery (a deliberate exception to the 50 ms rule) to show any error right away.
 - Bcc recipients only go into the SMTP envelope, never into headers.
