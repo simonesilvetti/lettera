@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import AccountForm from './AccountForm.svelte';
+  import Brand from './Brand.svelte';
   import Compose from './Compose.svelte';
   import MessageList from './MessageList.svelte';
   import Palette from './Palette.svelte';
@@ -100,6 +101,9 @@
           <span class="muted">{app.unread} unread · {app.total}</span>
         </div>
       {/if}
+      {#if app.focus !== 'search' && !app.query}
+        <div class="brand"><Brand /></div>
+      {/if}
       <span class="muted ellipsis">{app.account}</span>
     </header>
     <main bind:clientWidth={mainWidth} style:--list-width="{listWidth}px">
@@ -138,6 +142,7 @@
   }
 
   header {
+    position: relative;
     height: 40px;
     flex: none;
     display: flex;
@@ -146,6 +151,14 @@
     gap: 24px;
     padding: 0 16px;
     border-bottom: var(--line);
+  }
+
+  /* centred on the window, independent of what sits left and right */
+  .brand {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
   }
 
   .title {
