@@ -179,8 +179,26 @@ fn attachment_list(m: &Message) -> Vec<AttachmentMeta> {
     out
 }
 
+/// Reading text of an html-only message. Raw mode reads layout tables as one
+/// column: with the default every nested table of a newsletter or receipt
+/// became rows of `─` borders. Links stay as numbered footnotes with their
+/// URL; markdown heading marks (`#### `) are dropped.
 pub fn html_to_text(html: &str) -> String {
-    html2text::from_read(html.as_bytes(), 10_000).unwrap_or_else(|_| html.to_string())
+    let text = html2text::config::plain()
+        .raw_mode(true)
+        .string_from_read(html.as_bytes(), 10_000)
+        .unwrap_or_else(|_| html.to_string());
+    let mut out = String::with_capacity(text.len());
+    for line in text.lines() {
+        let hashes = line.len() - line.trim_start_matches('#').len();
+        let line = match line[hashes..].strip_prefix(' ') {
+            Some(rest) if (1..=6).contains(&hashes) => rest,
+            _ => line,
+        };
+        out.push_str(line.trim_end());
+        out.push('\n');
+    }
+    out
 }
 
 /// The Bcc header, kept only in draft copies.

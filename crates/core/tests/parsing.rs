@@ -3,7 +3,8 @@ mod common;
 use common::fixture;
 use lettera_core::model::BlockKind;
 use lettera_core::parse::{
-    extract_attachment, invalid_recipients, parse_body, parse_envelope, parse_recipients,
+    extract_attachment, html_to_text, invalid_recipients, parse_body, parse_envelope,
+    parse_recipients,
 };
 use lettera_core::reading;
 
@@ -168,4 +169,17 @@ fn entries_that_are_not_addresses_are_reported() {
     let f = "a@b.it, \"Rossi, Anna\" <anna@x.it>; Marco <m@x.it>,, nonvalido, mario(at)x.it";
     assert_eq!(invalid_recipients(f), ["nonvalido", "mario(at)x.it"]);
     assert!(invalid_recipients("a@b.it, ").is_empty());
+}
+
+#[test]
+fn layout_tables_read_as_plain_text() {
+    let html = r#"<table><tr><td><table><tr><td><h4>Ciao Anna</h4></td></tr>
+        <tr><td>Hai pagato 10 &euro;</td><td>oggi</td></tr></table></td></tr>
+        <tr><td><a href="https://esempio.it/ricevuta">Vedi la ricevuta</a></td></tr></table>"#;
+    let text = html_to_text(html);
+    assert!(!text.contains('─') && !text.contains('│'), "{text}");
+    assert!(!text.contains("####"), "{text}");
+    assert!(text.lines().any(|l| l == "Ciao Anna"), "{text}");
+    assert!(text.contains("Hai pagato 10 €"), "{text}");
+    assert!(text.contains("https://esempio.it/ricevuta"), "{text}");
 }

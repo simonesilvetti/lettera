@@ -20,6 +20,7 @@ pub const LOCAL_UID_BASE: u32 = 0xFFF0_0000;
 const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_init.sql"),
     include_str!("../migrations/0002_thread_index.sql"),
+    include_str!("../migrations/0003_html_bodies_again.sql"),
 ];
 
 pub struct Db {
