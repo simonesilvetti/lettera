@@ -106,6 +106,6 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 
 - Flatpak on GNOME 51 with a build that downloads dependencies (`--share=network`): a local package, not ready for Flathub; data in the sandbox, not shared with a native install.
 - `deb` and `rpm` bundles on Linux, `app` and `dmg` on macOS; no AppImage (it downloads tools during the build).
-- Icon hand-drawn in SVG and converted with `cargo tauri icon`; set reduced to desktop icons.
+- Icon hand-drawn in SVG and converted with `cargo tauri icon`; set reduced to desktop icons. Since 2026-10-19 the typewriter types an envelope (flap cut out as a V) instead of a sheet, so it reads as an email client; chosen by the user among three drafts.
 - Wordmark: Special Elite (Apache 2.0) converted to paths with fontTools, color `currentColor`.
 - Integration tests: Dovecot and Mailpit in Docker with a test CA in the repository (the CA's private key was discarded).

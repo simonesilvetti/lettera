@@ -9,15 +9,13 @@
         <rect x="392" y="748" width="240" height="32"/>
       </g>
     </mask>
-    <mask id="lines" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+    <mask id="flap" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
       <rect width="1024" height="1024" fill="#fff"/>
-      <g fill="#000">
-        <rect x="408" y="232" width="208" height="28"/>
-        <rect x="408" y="300" width="144" height="28"/>
-      </g>
+      <!-- envelope flap: the letter coming out of the typewriter -->
+      <polyline points="312,192 512,340 712,192" fill="none" stroke="#000" stroke-width="40"/>
     </mask>
   </defs>
-  <rect x="352" y="160" width="320" height="300" fill="#7aa2f7" mask="url(#lines)"/>
+  <rect x="292" y="176" width="440" height="284" fill="#7aa2f7" mask="url(#flap)"/>
   <rect x="232" y="440" width="560" height="56" fill="#c0caf5"/>
   <rect x="172" y="528" width="680" height="296" fill="#c0caf5" mask="url(#keys)"/>
 </svg>
