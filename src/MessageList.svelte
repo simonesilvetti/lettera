@@ -70,7 +70,7 @@
 
 <style>
   .list {
-    width: 420px;
+    width: var(--list-width, 420px);
     flex: none;
     border-right: var(--line);
     overflow-y: auto;
@@ -145,7 +145,8 @@
   }
 
   .from {
-    width: 150px;
+    /* shrinks with a narrow list so the subject keeps some room */
+    width: clamp(96px, 32%, 150px);
     flex: none;
   }
 

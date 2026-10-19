@@ -74,13 +74,16 @@
     {#if app.screen === 'compose'}
       <span>from {app.draft?.account}</span>
     {:else if app.account}
-      {#if !sync || sync.state === 'syncing'}
-        <span>sync <span class="dot"></span></span>
-      {:else if sync.state === 'error'}
-        <span title={sync.message}>error <span class="dot red"></span></span>
-      {:else}
-        <span>sync {clock(sync.at)} <span class="dot green"></span></span>
-      {/if}
+      <!-- click = sync now, like R -->
+      <button class="sync" onclick={() => runCommand('sync')} title={sync?.state === 'error' ? sync.message : 'sync now (R)'}>
+        {#if !sync || sync.state === 'syncing'}
+          sync <span class="dot"></span>
+        {:else if sync.state === 'error'}
+          error <span class="dot red"></span>
+        {:else}
+          sync {clock(sync.at)} <span class="dot green"></span>
+        {/if}
+      </button>
     {/if}
   </div>
 </footer>
@@ -108,6 +111,14 @@
 
   .right {
     flex: none;
+  }
+
+  .sync {
+    color: var(--muted);
+  }
+
+  .sync:hover {
+    color: var(--accent);
   }
 
 

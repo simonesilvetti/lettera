@@ -84,6 +84,8 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Commands beyond the spec's list: `prepare_draft`, `discard_draft`, `pick_files`, `open_url`, `enable_images`, `suggest_contacts`, `app_info`; extra events: `body:ready`, `accounts:changed`.
 - Key hints are also buttons that run the registry command; disabled when the command is not available.
 - Removing an attachment while composing: click its name.
+- The sync status in the bottom bar is a button for `sync now`.
+- Resizable list pane: a 7px invisible grab area on the border (accent line on hover), list ≥ 300px and thread ≥ 360px, double-click resets to 420px; width kept in `localStorage` (a per-machine convenience). The sender column shrinks with the list (`clamp(96px, 32%, 150px)`).
 - `open config` uses `gio open` on Linux (terminal editors open in a terminal), the opener plugin as a fallback and inside Flatpak.
 - Vim-style panes: `h`/`←` focus the list without closing the thread, `l`/`→` open/focus the selected thread, and in the thread expand the current message; in the thread `h`/`←` first collapses an open message, then goes back to the list. The inactive pane's selection bar turns muted.
 - Opening a thread marks it read; `u` marks it unread and closes the thread.

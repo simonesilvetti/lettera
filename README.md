@@ -198,7 +198,9 @@ The pane with focus has the accent-colored bar (selected row or current message)
 
 No shortcut fires while you type in a field, except `esc` and `⌃` combinations. Every command, including those without a key (`move to…`, `go to folder…`, `switch account…`, `open config`, `enable images`, `info`…), is in the palette.
 
-Every key hint (the bottom bar, the actions under a message, the compose screen) is also a button: clicking it does the same as the shortcut. Hints that are not available right now are dimmed.
+Every key hint (the bottom bar, the actions under a message, the compose screen) is also a button: clicking it does the same as the shortcut. Hints that are not available right now are dimmed. The sync status at the bottom right is a button too: click it to sync now (same as `R`).
+
+The border between the list and the thread can be dragged with the mouse; double-click it to restore the default width. The width is remembered.
 
 ## The Omarchy theme
 
