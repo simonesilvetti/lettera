@@ -54,6 +54,8 @@ pub struct ThreadSummary {
     pub unread: bool,
     pub flagged: bool,
     pub has_attachments: bool,
+    /// The account's own address is among the `To:` recipients of some message.
+    pub to_me: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]

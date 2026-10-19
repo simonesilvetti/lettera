@@ -93,6 +93,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Folders with a role get English labels (inbox, sent, drafts, trash, archive, spam, all mail).
 - Dates in the list: the year appears only if it is not the current one.
 - Square unread dot: no `border-radius`, not even there.
+- List marks: muted `›` when the account's address is in `To:` of any message in the thread (Gmail's convention), in a reserved column so subjects line up; a 1.5px-stroke paperclip before the date for attachments — the only drawn glyph in the app, asked for by the user.
 - The Google form asks for client id and secret: before the account exists there is nowhere else to take them from.
 - OAuth with `access_type=offline`, `prompt=consent` and `login_hint`, to always get a refresh token for the right email.
 - The add form suggests `imap.` and `smtp.` of the email's domain; the TLS mode follows the port but can be switched with a click.

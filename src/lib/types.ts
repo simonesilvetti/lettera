@@ -30,6 +30,7 @@ export interface ThreadSummary {
   unread: boolean;
   flagged: boolean;
   has_attachments: boolean;
+  to_me: boolean;
 }
 
 export interface DateGroup {

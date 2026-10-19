@@ -522,7 +522,10 @@ impl Db {
             "WITH m AS ({base})
              SELECT thread_id, MAX(date) AS d, from_name, from_addr, subject, COUNT(*),
                     SUM(instr(flags, '\\Seen') = 0), SUM(instr(flags, '\\Flagged') > 0),
-                    MAX(has_attachments), group_concat(id)
+                    MAX(has_attachments), group_concat(id),
+                    MAX(EXISTS(SELECT 1 FROM json_each(m.to_addrs) j, accounts a
+                               WHERE a.id = m.account_id
+                                 AND lower(json_extract(j.value, '$.addr')) = lower(a.email)))
              FROM m GROUP BY thread_id ORDER BY d DESC, thread_id LIMIT ?3 OFFSET ?4"
         ))?;
         let items = stmt
@@ -543,6 +546,7 @@ impl Db {
                     unread: r.get::<_, i64>(6)? > 0,
                     flagged: r.get::<_, i64>(7)? > 0,
                     has_attachments: r.get::<_, i64>(8)? > 0,
+                    to_me: r.get::<_, i64>(10)? > 0,
                     ids: ids.split(',').filter_map(|s| s.parse().ok()).collect(),
                 })
             })?

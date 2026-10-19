@@ -158,6 +158,15 @@ Notes:
 - for Google Workspace accounts the administrator must allow IMAP access and third-party OAuth apps;
 - archiving on Gmail removes the message from INBOX and leaves it in *All Mail*; deleting moves it to *Trash*. This works with Gmail's default IMAP settings (“when a message is deleted from the last visible IMAP folder: archive the message”).
 
+## The message list
+
+Each row shows sender (with the thread's message count), subject and date. Small muted marks:
+
+- `■` on the left — unread;
+- `›` before the subject — your account's address is in `To:` (sent to you directly, not as Cc or through a list);
+- `*` before the subject — flagged;
+- a paperclip before the date — the thread has attachments (guessed from the headers until the body is downloaded).
+
 ## Shortcuts
 
 | key | action |

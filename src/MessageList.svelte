@@ -54,7 +54,16 @@
             <span class="dot"></span>
             {#if t}
               <span class="from ellipsis">{t.from}{t.count > 1 ? ` ${t.count}` : ''}</span>
-              <span class="subject ellipsis">{t.flagged ? '* ' : ''}{t.subject || '(no subject)'}</span>
+              <span class="subject ellipsis"
+                ><span class="to-me" title={t.to_me ? 'sent to you' : undefined}>{t.to_me ? '›' : ''}</span>{t.flagged ? '* ' : ''}{t.subject || '(no subject)'}</span
+              >
+              {#if t.has_attachments}
+                <svg class="clip" viewBox="0 0 24 24" aria-label="attachment" role="img">
+                  <path
+                    d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
+                  />
+                </svg>
+              {/if}
               <span class="date">{shortDate(t.date)}</span>
             {/if}
           </button>
@@ -125,6 +134,25 @@
 
   .unread .dot {
     background: var(--accent);
+  }
+
+  /* always takes its column, so subjects line up */
+  .to-me {
+    display: inline-block;
+    width: 1.5ch;
+    color: var(--muted);
+    font-weight: normal;
+  }
+
+  .clip {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .from {

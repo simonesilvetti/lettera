@@ -309,3 +309,33 @@ async fn date_window_skips_old_mail() {
     assert!(uids(&db).is_empty());
     assert!(!s.log.iter().any(|l| l.starts_with("FETCH")));
 }
+
+#[tokio::test]
+async fn to_me_and_attachment_marks() {
+    async fn threads(me: &str) -> Vec<(String, bool, bool)> {
+        let db = Db::open_memory().unwrap();
+        let acc = db.upsert_account(me, "Me", "imap").unwrap();
+        let mut s = server();
+        let inbox = sync::sync_folder_list(&mut s, &db, acc).await.unwrap()[0].clone();
+        sync::sync_folder(&mut s, &db, &inbox, &HashSet::new())
+            .await
+            .unwrap();
+        let mut v: Vec<_> = db
+            .list_threads(inbox.id, "", 0, 10, chrono::Local::now())
+            .unwrap()
+            .items
+            .into_iter()
+            .map(|t| (t.subject, t.to_me, t.has_attachments))
+            .collect();
+        v.sort();
+        v
+    }
+    // Marco is in To: of both threads (case does not matter); only the invoice has a PDF
+    let marco = threads("Marco@Esempio.it").await;
+    assert_eq!(marco.len(), 2);
+    assert!(marco.iter().all(|(_, to_me, _)| *to_me), "{marco:?}");
+    assert_eq!(marco.iter().filter(|(_, _, att)| *att).count(), 1);
+    // Giulia is only in Cc: no mark
+    let giulia = threads("giulia@esempio.it").await;
+    assert!(giulia.iter().all(|(_, to_me, _)| !to_me), "{giulia:?}");
+}
