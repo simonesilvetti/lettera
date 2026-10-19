@@ -339,3 +339,45 @@ async fn to_me_and_attachment_marks() {
     let giulia = threads("giulia@esempio.it").await;
     assert!(giulia.iter().all(|(_, to_me, _)| !to_me), "{giulia:?}");
 }
+
+#[tokio::test]
+async fn attachments_shared_between_copies() {
+    // Gmail: the same message is in INBOX and All Mail; only one copy gets
+    // downloaded, but a thread may show the other one.
+    let (db, acc) = setup();
+    let mut s = MockImap::default();
+    let mut inbox = MockFolder::new(1);
+    inbox.add(fixture("08_attachment_pdf.eml"), "");
+    s.folders.insert("INBOX".into(), inbox);
+    let mut all = MockFolder::new(2);
+    all.attributes = vec!["\\all".into()];
+    all.add(fixture("08_attachment_pdf.eml"), "");
+    s.folders.insert("All Mail".into(), all);
+    let none = HashSet::new();
+    let folders = sync::sync_folder_list(&mut s, &db, acc).await.unwrap();
+    for f in &folders {
+        sync::sync_folder(&mut s, &db, f, &none).await.unwrap();
+    }
+    let id_in = |role: &str| {
+        let f = folders
+            .iter()
+            .find(|f| f.role.as_deref() == Some(role))
+            .unwrap();
+        db.list_threads(f.id, "", 0, 1, chrono::Local::now())
+            .unwrap()
+            .items[0]
+            .ids[0]
+    };
+    let (inbox_copy, all_copy) = (id_in("inbox"), id_in("all"));
+    assert_ne!(inbox_copy, all_copy);
+    let f = db.folder(folders[0].id).unwrap();
+    sync::prefetch_bodies(&mut s, &db, &f, 0, 10).await.unwrap();
+
+    assert!(db.body(all_copy).unwrap().is_some(), "body is shared");
+    let atts = db.attachments(all_copy).unwrap();
+    assert_eq!(atts.len(), 1, "attachments are shared too");
+    assert_eq!(
+        atts[0].message_id, inbox_copy,
+        "saving uses the downloaded copy"
+    );
+}

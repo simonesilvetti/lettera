@@ -679,10 +679,20 @@ impl Db {
         Ok(rows)
     }
 
+    /// Attachments of a message. Like [`Db::body`], they come from whichever
+    /// copy of the same Message-ID (INBOX, All Mail, …) has a downloaded body,
+    /// preferring the message itself: a thread shows one copy per Message-ID,
+    /// not necessarily the one that was downloaded.
     pub fn attachments(&self, message_id: i64) -> Result<Vec<AttachmentInfo>> {
         let c = self.lock();
         let mut stmt = c.prepare(
-            "SELECT id, message_id, filename, mime, size FROM attachments WHERE message_id = ?1 ORDER BY part_index",
+            "SELECT id, message_id, filename, mime, size FROM attachments
+             WHERE message_id = (
+                SELECT m.id FROM messages m JOIN bodies b ON b.message_id = m.id
+                WHERE m.id = ?1 OR (m.account_id, m.message_id) =
+                    (SELECT account_id, message_id FROM messages WHERE id = ?1)
+                ORDER BY m.id = ?1 DESC LIMIT 1)
+             ORDER BY part_index",
         )?;
         let rows = stmt
             .query_map([message_id], |r| {
