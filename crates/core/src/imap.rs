@@ -49,6 +49,11 @@ pub trait ImapClient: Send {
         &mut self,
         uid_set: &str,
     ) -> impl Future<Output = Result<Vec<(u32, String)>>> + Send;
+    /// `UID SEARCH SINCE <date>` on the selected folder (by arrival date).
+    fn search_since(
+        &mut self,
+        date: chrono::NaiveDate,
+    ) -> impl Future<Output = Result<Vec<u32>>> + Send;
     /// Full RFC 5322 bytes for each UID in the set.
     fn fetch_raw(
         &mut self,
@@ -399,6 +404,11 @@ impl ImapClient for RealImap {
             .iter()
             .filter_map(|f| Some((f.uid?, flags_of(f))))
             .collect())
+    }
+
+    async fn search_since(&mut self, date: chrono::NaiveDate) -> Result<Vec<u32>> {
+        let query = format!("SINCE {}", date.format("%d-%b-%Y"));
+        Ok(self.session.uid_search(query).await?.into_iter().collect())
     }
 
     async fn fetch_raw(&mut self, uid_set: &str) -> Result<Vec<(u32, Vec<u8>)>> {

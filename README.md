@@ -57,6 +57,16 @@ just build
 install -Dm755 target/release/lettera ~/.local/bin/lettera
 ```
 
+### Flatpak
+
+```sh
+just flatpak                                  # crea lettera.flatpak
+flatpak install --user lettera.flatpak
+flatpak run app.lettera.desktop
+```
+
+Serve `flatpak` con il remote Flathub; la ricetta usa `org.flatpak.Builder` e scarica da sola GNOME 51, Rust e Node per la build. Nel sandbox config e database stanno in `~/.var/app/app.lettera.desktop/` (separati da quelli dell'installazione nativa); l'app può leggere il tema di Omarchy, usare il keyring e le notifiche, e salvare o allegare file da Scaricati, Documenti, Immagini e Scrivania.
+
 Per sviluppare: `just dev` (finestra con ricarica automatica), `just test`, `just lint`, `just fmt`.
 
 ## Primo avvio
@@ -71,6 +81,7 @@ Il file è `~/.config/lettera/config.toml` (su macOS `~/Library/Application Supp
 theme = "auto"            # auto | omarchy | dark | light
 font = "JetBrains Mono"   # qualsiasi font monospace installato
 font_size = 13            # px dell'interfaccia; il corpo dei messaggi è +1
+sync_months = 48          # mesi di posta da tenere in sync (per data di arrivo); 0 = tutta
 
 [[accounts]]
 name = "Lavoro"           # nome mostrato e usato come mittente
@@ -83,6 +94,7 @@ smtp_port = 465           # 465 = TLS implicito, altre porte = STARTTLS
 username = "nome@dominio.it"   # facoltativo: di default è l'email
 # imap_tls = "starttls"   # solo per porte non standard: "implicit" o "starttls"
 # smtp_tls = "implicit"
+# sync_months = 12        # facoltativo: sostituisce quello generale per questo account
 # la password sta nel keyring di sistema, mai nel file
 
 [[accounts]]
@@ -93,6 +105,8 @@ client_id = "1234567890-abc.apps.googleusercontent.com"
 client_secret = "GOCSPX-…"
 # host e porte di Gmail sono già noti; il refresh token sta nel keyring
 ```
+
+`sync_months` limita la sync ai messaggi arrivati negli ultimi N mesi, in tutte le cartelle: quelli più vecchi non vengono scaricati (nemmeno gli header) e restano solo sul server. Con il passare dei mesi la finestra avanza e i messaggi che ne escono spariscono dal database locale, non dal server. Se cambi il valore, l'account si risincronizza subito: allargando la finestra arrivano anche i messaggi più vecchi.
 
 I segreti stanno nel keyring con la chiave `lettera/<email>` (servizio `lettera`, utente `<email>`). Il database locale è `~/.local/share/lettera/lettera.db`.
 
@@ -169,7 +183,7 @@ Test: `just test` esegue test unitari, parsing su 14 fixture `.eml`, threading, 
 - Solo IMAP/SMTP e Gmail; niente JMAP, Exchange/EWS, POP3, PGP, calendario, contatti, filtri.
 - Si scrive solo in testo semplice; l'inoltro cita il testo dell'originale ma non ne riporta gli allegati.
 - Le bozze restano locali (non vengono salvate nella cartella Bozze del server).
-- La prima sincronizzazione scarica gli header di tutte le cartelle, incluso *Tutti i messaggi* su Gmail: con caselle molto grandi richiede tempo e spazio. Nessun uso di CONDSTORE/QRESYNC.
+- La sync copre tutte le cartelle, incluso *Tutti i messaggi* su Gmail, entro la finestra di `sync_months` (48 mesi di default); la posta più vecchia non è consultabile dall'app. Nessun uso di CONDSTORE/QRESYNC.
 - La ricerca vale per la cartella corrente e trova nel testo solo i messaggi di cui è già stato scaricato il corpo (prefetch automatico degli ultimi 30 giorni di INBOX).
 - I nomi di cartella non ASCII in UTF-7 modificato vengono mostrati così come arrivano.
 - Le immagini inline `cid:` dell'originale HTML non vengono mostrate.

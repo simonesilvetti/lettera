@@ -25,6 +25,8 @@ pub struct MockFolder {
     pub uidvalidity: u32,
     pub uidnext: u32,
     pub messages: BTreeMap<u32, (String, Vec<u8>)>,
+    /// Arrival dates (INTERNALDATE); missing means today.
+    pub dates: BTreeMap<u32, chrono::NaiveDate>,
 }
 
 impl MockFolder {
@@ -40,6 +42,12 @@ impl MockFolder {
         let uid = self.uidnext;
         self.uidnext += 1;
         self.messages.insert(uid, (flags.to_string(), raw));
+        uid
+    }
+
+    pub fn add_dated(&mut self, raw: Vec<u8>, flags: &str, date: chrono::NaiveDate) -> u32 {
+        let uid = self.add(raw, flags);
+        self.dates.insert(uid, date);
         uid
     }
 }
@@ -150,6 +158,17 @@ impl ImapClient for MockImap {
         Ok(uids
             .into_iter()
             .map(|u| (u, f.messages[&u].0.clone()))
+            .collect())
+    }
+
+    async fn search_since(&mut self, date: chrono::NaiveDate) -> Result<Vec<u32>> {
+        self.log.push(format!("SEARCH SINCE {date}"));
+        let today = chrono::Local::now().date_naive();
+        let f = self.current();
+        Ok(f.messages
+            .keys()
+            .copied()
+            .filter(|u| f.dates.get(u).copied().unwrap_or(today) >= date)
             .collect())
     }
 

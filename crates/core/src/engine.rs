@@ -235,6 +235,15 @@ impl Inner {
             return Ok(());
         };
         let account_id = self.db.account_id(email)?;
+        let since = {
+            let cfg = self.config.read().unwrap_or_else(|p| p.into_inner());
+            let months = cfg
+                .accounts
+                .iter()
+                .find(|a| a.email == email)
+                .and_then(|a| cfg.sync_months(a));
+            config::sync_since(chrono::Local::now().date_naive(), months)
+        };
         let folders = if job.folders.is_empty() && !job.inbox {
             sync::sync_folder_list(c, &self.db, account_id).await?
         } else {
@@ -250,7 +259,7 @@ impl Inner {
         };
         for f in &folders {
             let skip = self.pending_uids(f.id);
-            let r = sync::sync_folder(c, &self.db, f, &skip).await?;
+            let r = sync::sync_folder_since(c, &self.db, f, &skip, since).await?;
             if r.changed {
                 self.emit(Event::MessagesChanged {
                     account: email.to_string(),
@@ -268,9 +277,10 @@ impl Inner {
                         }
                     }
                 }
-                let since = chrono::Utc::now().timestamp() - PREFETCH_DAYS * 86_400;
+                let recent = chrono::Utc::now().timestamp() - PREFETCH_DAYS * 86_400;
                 let fresh = self.db.folder(f.id)?;
-                for id in sync::prefetch_bodies(c, &self.db, &fresh, since, PREFETCH_LIMIT).await? {
+                for id in sync::prefetch_bodies(c, &self.db, &fresh, recent, PREFETCH_LIMIT).await?
+                {
                     self.emit(Event::BodyReady { id });
                 }
             }
@@ -591,12 +601,31 @@ impl Inner {
     fn reload(self: &Arc<Self>) {
         match config::load(&self.paths.config_file) {
             Ok(cfg) => {
-                let changed = *self.config.read().unwrap_or_else(|p| p.into_inner()) != cfg;
-                if changed {
+                let old = self
+                    .config
+                    .read()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .clone();
+                if old != cfg {
                     tracing::info!("config ricaricato");
+                    let resync: Vec<String> = cfg
+                        .accounts
+                        .iter()
+                        .filter(|a| {
+                            old.accounts
+                                .iter()
+                                .find(|o| o.email == a.email)
+                                .is_some_and(|o| old.sync_months(o) != cfg.sync_months(a))
+                        })
+                        .map(|a| a.email.clone())
+                        .collect();
                     *self.config.write().unwrap_or_else(|p| p.into_inner()) = cfg;
                     self.reconcile_accounts();
                     self.emit(Event::AccountsChanged);
+                    for email in resync {
+                        tracing::info!("{email}: finestra di sync cambiata, risincronizzo");
+                        self.request_sync(&email, SyncJob::default());
+                    }
                 }
             }
             Err(e) => {
@@ -772,6 +801,7 @@ impl Engine {
             client_secret: clean(&n.client_secret),
             imap_tls: clean(&n.imap_tls),
             smtp_tls: clean(&n.smtp_tls),
+            sync_months: None,
         };
         acc.validate()?;
         Ok(acc)

@@ -15,6 +15,9 @@ pub struct Config {
     pub font: String,
     #[serde(default = "default_font_size")]
     pub font_size: u32,
+    /// How many months of mail to keep in sync (by arrival date); 0 = everything.
+    #[serde(default = "default_sync_months")]
+    pub sync_months: u32,
     #[serde(default)]
     pub accounts: Vec<AccountConfig>,
 }
@@ -25,6 +28,7 @@ impl Default for Config {
             theme: default_theme(),
             font: default_font(),
             font_size: default_font_size(),
+            sync_months: default_sync_months(),
             accounts: Vec::new(),
         }
     }
@@ -38,6 +42,9 @@ fn default_font() -> String {
 }
 fn default_font_size() -> u32 {
     13
+}
+fn default_sync_months() -> u32 {
+    48
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -72,6 +79,9 @@ pub struct AccountConfig {
     pub imap_tls: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub smtp_tls: Option<String>,
+    /// Overrides the global `sync_months` for this account.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync_months: Option<u32>,
 }
 
 /// Where and how to reach a server. TLS mode follows the port (993/465 are
@@ -92,6 +102,23 @@ fn tls_mode(setting: Option<&str>, default: bool) -> Result<bool> {
             "tls {other:?} non valido: usa \"implicit\" o \"starttls\""
         ))),
     }
+}
+
+impl Config {
+    /// Sync window for an account in months, `None` meaning no limit.
+    pub fn sync_months(&self, account: &AccountConfig) -> Option<u32> {
+        Some(account.sync_months.unwrap_or(self.sync_months)).filter(|m| *m > 0)
+    }
+}
+
+/// First day of the sync window: `months` months before `today`.
+pub fn sync_since(today: chrono::NaiveDate, months: Option<u32>) -> Option<chrono::NaiveDate> {
+    let m = months?;
+    Some(
+        today
+            .checked_sub_months(chrono::Months::new(m))
+            .unwrap_or(chrono::NaiveDate::MIN),
+    )
 }
 
 impl AccountConfig {
@@ -219,6 +246,7 @@ const TEMPLATE: &str = r#"# lettera — configurazione. Ricaricata automaticamen
 theme = "auto"        # auto | omarchy | dark | light
 font = "JetBrains Mono"
 font_size = 13
+sync_months = 48      # mesi di posta da sincronizzare (0 = tutta); per account: sync_months = N
 "#;
 
 /// Content of a fresh config file.
@@ -264,6 +292,9 @@ fn account_block(a: &AccountConfig) -> String {
     }
     if let Some(v) = &a.smtp_tls {
         out += &format!("smtp_tls = {}\n", toml_str(v));
+    }
+    if let Some(v) = a.sync_months {
+        out += &format!("sync_months = {v}\n");
     }
     if !a.is_google() {
         out += "# la password sta nel keyring di sistema, mai nel file\n";
@@ -401,6 +432,7 @@ client_secret = "secret"
             client_secret: None,
             imap_tls: Some("implicit".into()),
             smtp_tls: None,
+            sync_months: Some(6),
         };
         let text = append_account(SAMPLE, &acc);
         let c = parse(&text).unwrap();
@@ -430,10 +462,25 @@ client_secret = "secret"
             client_secret: Some("s".into()),
             imap_tls: None,
             smtp_tls: None,
+            sync_months: None,
         };
         let text = append_account("", &acc);
         let c = parse(&text).unwrap();
         assert_eq!(c.theme, "auto");
         assert_eq!(c.accounts.len(), 1);
+        assert_eq!(c.sync_months(&c.accounts[0]), Some(48));
+    }
+
+    #[test]
+    fn sync_window() {
+        let mut c = parse("sync_months = 12\n[[accounts]]\nname = \"a\"\ntype = \"google\"\nemail = \"a@b.it\"\n[[accounts]]\nname = \"b\"\ntype = \"google\"\nemail = \"b@b.it\"\nsync_months = 0\n").unwrap();
+        assert_eq!(c.sync_months(&c.accounts[0]), Some(12));
+        assert_eq!(c.sync_months(&c.accounts[1]), None);
+        c.sync_months = 0;
+        assert_eq!(c.sync_months(&c.accounts[0]), None);
+        let d = |y, m, d| chrono::NaiveDate::from_ymd_opt(y, m, d).unwrap();
+        assert_eq!(sync_since(d(2026, 10, 19), Some(48)), Some(d(2022, 10, 19)));
+        assert_eq!(sync_since(d(2026, 3, 31), Some(1)), Some(d(2026, 2, 28)));
+        assert_eq!(sync_since(d(2026, 3, 31), None), None);
     }
 }

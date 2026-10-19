@@ -241,3 +241,71 @@ async fn flags_roundtrip() {
         .unwrap();
     assert_eq!(s.folders["INBOX"].messages[&1].0, "");
 }
+
+#[tokio::test]
+async fn date_window_skips_old_mail() {
+    let (db, acc) = setup();
+    let mut s = MockImap::default();
+    let day = |y, m, d| chrono::NaiveDate::from_ymd_opt(y, m, d).unwrap();
+    let mut inbox = MockFolder::new(100);
+    inbox.add_dated(fixture("01_plain.eml"), "", day(2019, 5, 1));
+    inbox.add_dated(
+        fixture("02_reply_with_references.eml"),
+        "",
+        day(2024, 1, 10),
+    );
+    inbox.add_dated(fixture("08_attachment_pdf.eml"), "", day(2026, 9, 1));
+    s.folders.insert("INBOX".into(), inbox);
+    let inbox = sync::sync_folder_list(&mut s, &db, acc).await.unwrap()[0].clone();
+    let none = HashSet::new();
+    let uids = |db: &Db| {
+        let mut v: Vec<u32> = db
+            .uid_flags(inbox.id)
+            .unwrap()
+            .iter()
+            .map(|(u, _)| *u)
+            .collect();
+        v.sort();
+        v
+    };
+
+    // 2022-10-01 onwards: the 2019 message is never fetched
+    let r = sync::sync_folder_since(&mut s, &db, &inbox, &none, Some(day(2022, 10, 1)))
+        .await
+        .unwrap();
+    assert_eq!(r.new_ids.len(), 2);
+    assert_eq!(uids(&db), vec![2, 3]);
+    assert!(s.log.iter().any(|l| l == "FETCH FLAGS 2:*"));
+    assert!(!s
+        .log
+        .iter()
+        .any(|l| l.starts_with("FETCH HEADERS") && l.contains('1')));
+
+    // the window moves forward: the 2024 message drops out locally
+    let f = db.folder(inbox.id).unwrap();
+    let r = sync::sync_folder_since(&mut s, &db, &f, &none, Some(day(2025, 1, 1)))
+        .await
+        .unwrap();
+    assert!(r.changed && r.new_ids.is_empty());
+    assert_eq!(uids(&db), vec![3]);
+    assert_eq!(
+        s.folders["INBOX"].messages.len(),
+        3,
+        "nothing touched on the server"
+    );
+
+    // a wider window (or none) brings older mail back
+    let r = sync::sync_folder_since(&mut s, &db, &f, &none, None)
+        .await
+        .unwrap();
+    assert_eq!(r.new_ids.len(), 2);
+    assert_eq!(uids(&db), vec![1, 2, 3]);
+
+    // nothing inside the window: folder empty locally, no flag fetch
+    s.log.clear();
+    sync::sync_folder_since(&mut s, &db, &f, &none, Some(day(2027, 1, 1)))
+        .await
+        .unwrap();
+    assert!(uids(&db).is_empty());
+    assert!(!s.log.iter().any(|l| l.starts_with("FETCH")));
+}

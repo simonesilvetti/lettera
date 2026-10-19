@@ -233,3 +233,38 @@ async fn wrong_password_is_an_auth_error() {
         .unwrap();
     assert!(matches!(err, lettera_core::Error::Auth(_)), "{err}");
 }
+
+#[tokio::test]
+async fn date_window_against_dovecot() {
+    if !enabled() {
+        return;
+    }
+    let user = unique_user();
+    let mut c = login(&user, 10993).await;
+    for name in ["01_plain.eml", "02_reply_with_references.eml"] {
+        c.append("INBOX", "", &fixture(name)).await.unwrap();
+    }
+    let db = Db::open_memory().unwrap();
+    let acc = db.upsert_account(&user, "test", "imap").unwrap();
+    let inbox = sync::sync_folder_list(&mut c, &db, acc).await.unwrap()[0].clone();
+    let none = HashSet::new();
+    let today = chrono::Local::now().date_naive();
+
+    // arrived today: inside a window starting last month, outside one starting tomorrow
+    let r = sync::sync_folder_since(
+        &mut c,
+        &db,
+        &inbox,
+        &none,
+        Some(today - chrono::Months::new(1)),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r.new_ids.len(), 2);
+    let f = db.folder(inbox.id).unwrap();
+    sync::sync_folder_since(&mut c, &db, &f, &none, Some(today + chrono::Days::new(1)))
+        .await
+        .unwrap();
+    assert!(db.uid_flags(inbox.id).unwrap().is_empty());
+    c.logout().await;
+}

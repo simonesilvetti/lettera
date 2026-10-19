@@ -58,14 +58,27 @@ async fn ensure_selected<C: ImapClient>(c: &mut C, folder: &str) -> Result<()> {
     Ok(())
 }
 
-/// One incremental pass over a folder: UIDVALIDITY check, new envelopes
-/// (newest first), flag refresh and removal of vanished messages.
-/// UIDs in `skip` are being moved/removed by a pending action and must not be re-inserted.
+/// [`sync_folder_since`] without a date window: the whole folder.
 pub async fn sync_folder<C: ImapClient>(
     c: &mut C,
     db: &Db,
     folder: &FolderRow,
     skip: &std::collections::HashSet<u32>,
+) -> Result<FolderSync> {
+    sync_folder_since(c, db, folder, skip, None).await
+}
+
+/// One incremental pass over a folder: UIDVALIDITY check, new envelopes
+/// (newest first), flag refresh and removal of vanished messages.
+/// UIDs in `skip` are being moved/removed by a pending action and must not be re-inserted.
+/// With `since`, only messages that arrived on or after that day are kept:
+/// older ones are never downloaded and drop out locally as the window moves.
+pub async fn sync_folder_since<C: ImapClient>(
+    c: &mut C,
+    db: &Db,
+    folder: &FolderRow,
+    skip: &std::collections::HashSet<u32>,
+    since: Option<chrono::NaiveDate>,
 ) -> Result<FolderSync> {
     let mut out = FolderSync::default();
     let status = c.select(&folder.name).await?;
@@ -90,7 +103,26 @@ pub async fn sync_folder<C: ImapClient>(
         return Ok(out);
     }
 
-    let server = c.fetch_flags("1:*").await?;
+    let server = match since {
+        None => c.fetch_flags("1:*").await?,
+        Some(day) => {
+            let inside: std::collections::HashSet<u32> =
+                c.search_since(day).await?.into_iter().collect();
+            match (inside.iter().min(), inside.iter().max()) {
+                (Some(lo), Some(hi)) => {
+                    let hi = *hi;
+                    // Flags from the oldest UID in the window on; anything that
+                    // arrived after the SEARCH is newer than `hi` and stays too.
+                    c.fetch_flags(&format!("{lo}:*"))
+                        .await?
+                        .into_iter()
+                        .filter(|(u, _)| inside.contains(u) || *u > hi)
+                        .collect()
+                }
+                _ => Vec::new(),
+            }
+        }
+    };
     // Anything on the server we don't have yet (also fills holes left by
     // an interrupted first sync), newest first.
     let local_uids: std::collections::HashSet<u32> = local.iter().map(|(u, _)| *u).collect();

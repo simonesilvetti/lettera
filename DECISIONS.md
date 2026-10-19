@@ -32,6 +32,7 @@ Scelte non ovvie, una riga ciascuna. Quando una scelta era ambigua è stata pres
 - Un solo `UID FETCH 1:* (FLAGS)` per cartella dà insieme UID nuovi, flag aggiornati e messaggi spariti; i nuovi si scaricano dal più recente, a blocchi di 200.
 - Sono nuovi tutti gli UID che mancano in locale (non solo quelli ≥ UIDNEXT): una prima sync interrotta si completa da sola.
 - Si sincronizzano tutte le cartelle selezionabili, anche *Tutti i messaggi* su Gmail; solo envelope.
+- Finestra di sync `sync_months` (default 48, 0 = tutto, sovrascrivibile per account): `UID SEARCH SINCE` per data di arrivo, poi flag da `<UID minimo>:*`; i messaggi usciti dalla finestra si cancellano solo in locale.
 - Corpi su richiesta più prefetch degli ultimi 30 giorni di INBOX, massimo 150 per giro.
 - `has_attachments` è stimato dall'header (`multipart/mixed`) finché non arriva il corpo, poi corretto dal parsing; niente BODYSTRUCTURE.
 - Gli allegati non sono salvati su disco: il messaggio si riscarica quando l'utente salva un allegato.
@@ -90,6 +91,7 @@ Scelte non ovvie, una riga ciascuna. Quando una scelta era ambigua è stata pres
 
 ## Pacchetti e identità
 
+- Flatpak su GNOME 51 con build che scarica le dipendenze (`--share=network`): pacchetto locale, non pronto per Flathub; dati nel sandbox, non condivisi con l'installazione nativa.
 - Bundle `deb` e `rpm` su Linux, `app` e `dmg` su macOS; niente AppImage (scarica strumenti durante la build).
 - Icona disegnata a mano in SVG e convertita con `cargo tauri icon`; set ridotto alle icone desktop.
 - Wordmark: Special Elite (Apache 2.0) convertito in tracciati con fontTools, colore `currentColor`.
