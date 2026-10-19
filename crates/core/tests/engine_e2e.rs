@@ -110,7 +110,8 @@ async fn engine_end_to_end() {
         client_id: None,
         client_secret: None,
         imap_tls: Some("implicit".into()),
-        smtp_tls: None,
+        // wrong on purpose: Mailpit wants STARTTLS on this port
+        smtp_tls: Some("implicit".into()),
     };
     assert!(engine.add_account(account.clone()).await.is_err());
     assert!(!paths.config_file.exists());
@@ -119,6 +120,7 @@ async fn engine_end_to_end() {
     engine.add_account(account).await.expect("add account");
     let cfg = std::fs::read_to_string(&paths.config_file).unwrap();
     assert!(cfg.contains(&email) && !cfg.contains("\"pass\""), "{cfg}");
+    assert!(!cfg.contains("smtp_tls"), "the mode that works is saved: {cfg}");
     assert_eq!(engine.list_accounts().len(), 1);
 
     // initial sync
@@ -180,6 +182,8 @@ async fn engine_end_to_end() {
         .prepare_draft(&email, DraftKind::Reply, Some(reply_to))
         .unwrap();
     assert_eq!(resumed.body, draft.body);
+    // with the PDF saved earlier attached
+    draft.attachments = vec![out.display().to_string()];
     engine.send(draft).await.expect("send");
     let list = http_json("http://127.0.0.1:18025/api/v1/messages?limit=50").await;
     let sent = list["messages"]
@@ -195,6 +199,14 @@ async fn engine_end_to_end() {
     ))
     .await;
     assert_eq!(headers["In-Reply-To"][0], "<reply-002@esempio.it>");
+    let detail = http_json(&format!(
+        "http://127.0.0.1:18025/api/v1/message/{}",
+        sent["ID"].as_str().unwrap()
+    ))
+    .await;
+    let att = &detail["Attachments"][0];
+    assert_eq!(att["FileName"], "salvato.pdf");
+    assert_eq!(att["ContentType"], "application/pdf");
     assert_eq!(
         headers["References"][0],
         "<root-001@esempio.it> <reply-002@esempio.it>"

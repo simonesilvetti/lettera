@@ -170,9 +170,11 @@ Note:
 | `⌃1` … `⌃9` | cambia account |
 | `R` | sincronizza ora |
 
-In composizione: `⌃⏎` invia · `⌃a` allega · `⌃b` mostra il campo ccn · `⌃q` mostra la citazione · `esc` chiude (con modifiche non salvate chiede un secondo `esc` e scarta la bozza). Le bozze si salvano da sole ogni 5 secondi e si riprendono ripremendo `c` (o `r`/`a`/`f` sullo stesso messaggio).
+In composizione: `⌃⏎` invia · `⌃a` allega · `⌃d` rimuove un allegato (oppure clic sulla `×` accanto al nome) · `⌃b` mostra il campo ccn · `⌃q` mostra la citazione · `esc` chiude (con modifiche non salvate chiede un secondo `esc` e scarta la bozza). Le bozze si salvano da sole ogni 5 secondi e si riprendono ripremendo `c` (o `r`/`a`/`f` sullo stesso messaggio).
 
 Nessuna scorciatoia scatta mentre scrivi in un campo, tranne `esc` e le combinazioni con `⌃`. Tutti i comandi, anche quelli senza tasto (`sposta in…`, `vai a cartella…`, `cambia account…`, `apri config`, `abilita immagini`, `info`…), sono nella palette.
+
+Tutti i suggerimenti con un tasto (la barra in basso, i comandi sotto un messaggio, gli allegati) sono anche cliccabili: il clic fa la stessa cosa della scorciatoia. Quelli non disponibili in quel momento sono attenuati.
 
 ## Il tema di Omarchy
 

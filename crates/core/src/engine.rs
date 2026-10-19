@@ -825,6 +825,17 @@ impl Engine {
             password: password.clone(),
         };
         imap::connect(&acc.imap()?, &creds).await?.logout().await;
+        let mut acc = acc;
+        let smtp_ep = acc.smtp()?;
+        let implicit = smtp::check(&smtp_ep, &creds).await.map_err(|e| {
+            Error::Smtp(format!(
+                "invio non configurato bene ({}:{}): {e}",
+                smtp_ep.host, smtp_ep.port
+            ))
+        })?;
+        // keep what actually worked; the port-based default needs no line
+        acc.smtp_tls = (implicit != (smtp_ep.port == 465))
+            .then(|| if implicit { "implicit" } else { "starttls" }.to_string());
         let email = acc.email.clone();
         tokio::task::spawn_blocking(move || secrets::set(&email, &password))
             .await

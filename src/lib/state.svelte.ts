@@ -523,6 +523,14 @@ export async function attach() {
   }
 }
 
+export function removeAttachment(i: number) {
+  if (!app.draft) return;
+  app.draft.attachments = app.draft.attachments.filter((_, k) => k !== i);
+  touchDraft();
+}
+
+export const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
+
 // ------------------------------------------------------------------ palette
 
 export function openPalette(items: PaletteItem[] | null = null, title = '') {

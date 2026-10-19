@@ -1,23 +1,56 @@
 <script lang="ts">
-  import { byId } from './lib/commands';
+  import { byId, runCommand } from './lib/commands';
   import { app, clock } from './lib/state.svelte';
 
-  function hint(id: string): [string, string] {
-    const c = byId(id);
-    return [c?.shortcut ?? '', c?.label ?? id];
+  /** A key hint; with `run` it is also a button. */
+  interface Hint {
+    key: string;
+    label: string;
+    run?: () => unknown;
+    off?: boolean;
   }
 
-  const hints = $derived.by((): [string, string][] => {
+  function hint(id: string, label?: string, key?: string): Hint {
+    const c = byId(id);
+    return {
+      key: key ?? c?.shortcut ?? '',
+      label: label ?? c?.label ?? id,
+      run: () => runCommand(id),
+      off: c?.when ? !c.when() : false,
+    };
+  }
+
+  function closeSetup() {
+    app.setupOpen = false;
+    app.screen = 'inbox';
+  }
+
+  const hints = $derived.by((): Hint[] => {
     if (app.screen === 'compose') {
-      if (app.confirmDiscard) return [['esc', 'di nuovo per scartare']];
-      const list = [hint('send'), hint('attach'), hint('bcc')];
-      if (app.draft?.quote) list.push(['⌃q', app.draftQuote ? 'nascondi citazione' : 'mostra citazione']);
+      if (app.confirmDiscard) return [hint('cancel', 'di nuovo per scartare')];
+      const list = [hint('send'), hint('attach')];
+      if (app.draft?.attachments.length) list.push(hint('remove-attachment', 'rimuovi allegato'));
+      list.push(hint('bcc'));
+      if (app.draft?.quote) list.push(hint('quote', app.draftQuote ? 'nascondi citazione' : 'mostra citazione'));
       list.push(hint('cancel'));
       return list;
     }
-    if (app.screen === 'setup') return [['⏎', 'conferma'], ...(app.accounts.length ? [['esc', 'annulla'] as [string, string]] : [])];
-    if (app.focus === 'search') return [['⏎', 'conferma'], ['esc', 'annulla']];
-    return [['j/k', 'naviga'], ['⏎', 'apri'], hint('archive'), hint('reply'), hint('compose'), hint('search'), [':', 'comandi']];
+    if (app.screen === 'setup') {
+      const submit = () => document.querySelector<HTMLFormElement>('.setup form')?.requestSubmit();
+      const list: Hint[] = [{ key: '⏎', label: 'conferma', run: submit }];
+      if (app.accounts.length) list.push({ key: 'esc', label: 'annulla', run: closeSetup });
+      return list;
+    }
+    if (app.focus === 'search') return [hint('search-done', 'conferma', '⏎'), hint('search-cancel', 'annulla', 'esc')];
+    return [
+      { key: 'j/k', label: 'naviga' },
+      hint('open', 'apri'),
+      hint('archive'),
+      hint('reply'),
+      hint('compose'),
+      hint('search'),
+      hint('palette'),
+    ];
   });
 
   const sync = $derived(app.status[app.account]);
@@ -28,9 +61,13 @@
     {#if app.flash}
       <span class:error={app.flash.error} class="ellipsis">{app.flash.text}</span>
     {:else}
-      {#each hints as [key, label], i (i)}
+      {#each hints as h, i (i)}
         {#if i > 0}<span class="sep">·</span>{/if}
-        <span class="hint"><b>{key}</b> {label}</span>
+        {#if h.run}
+          <button class="hint" disabled={h.off} onclick={h.run}><b>{h.key}</b> {h.label}</button>
+        {:else}
+          <span class="hint"><b>{h.key}</b> {h.label}</span>
+        {/if}
       {/each}
     {/if}
   </div>
@@ -73,6 +110,7 @@
   .right {
     flex: none;
   }
+
 
   .error {
     color: var(--red);

@@ -77,6 +77,9 @@ Scelte non ovvie, una riga ciascuna. Quando una scelta era ambigua è stata pres
 - Comandi e scorciatoie da un unico registro; le scorciatoie hanno uno *scope* (lista, thread, posta, composizione, palette, ricerca, globale).
 - Comandi Tauri con argomenti in snake_case (`rename_all`), come nella specifica.
 - Comandi in più rispetto alla lista: `prepare_draft`, `discard_draft`, `pick_files`, `open_url`, `enable_images`, `suggest_contacts`, `app_info`; eventi in più: `body:ready`, `accounts:changed`.
+- Gli hint con un tasto sono anche pulsanti che eseguono il comando del registro; disattivati se il comando non è disponibile.
+- Rimuovere un allegato in composizione: `×` accanto al nome oppure `⌃d` (palette con l'elenco).
+- SMTP: se il TLS implicito riceve testo in chiaro (porta STARTTLS) si riprova con STARTTLS, sempre con TLS obbligatorio; l'aggiunta di un account prova anche il login SMTP e salva la modalità che funziona.
 - Aprire un thread lo segna come letto; `u` lo segna non letto e chiude il thread.
 - Archiviare o eliminare con il thread aperto apre il thread successivo.
 - Lista virtualizzata con righe a altezza fissa (38 px), intestazioni di gruppo comprese.

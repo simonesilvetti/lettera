@@ -140,6 +140,17 @@ a:hover {
   font-weight: normal;
 }
 
+/* key hints that are also buttons: click = the shortcut */
+button.hint:hover:not(:disabled),
+button.hint:hover:not(:disabled) b {
+  color: var(--accent);
+}
+
+button.hint:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;

@@ -1,7 +1,8 @@
 <script lang="ts">
   import StatusLine from './StatusLine.svelte';
   import { api } from './lib/api';
-  import { app, clock, touchDraft } from './lib/state.svelte';
+  import { runCommand } from './lib/commands';
+  import { app, clock, fileName, removeAttachment, touchDraft } from './lib/state.svelte';
   import type { Addr } from './lib/types';
 
   type Field = 'to' | 'cc' | 'bcc';
@@ -69,11 +70,6 @@
     lookup(field, e.currentTarget.value);
   }
 
-  function removeFile(i: number) {
-    d.attachments = d.attachments.filter((_, k) => k !== i);
-    touchDraft();
-  }
-
   const fields = $derived<[Field, string][]>(app.draftBcc ? [['to', 'a'], ['cc', 'cc'], ['bcc', 'ccn']] : [['to', 'a'], ['cc', 'cc']]);
 </script>
 
@@ -133,20 +129,22 @@
       {#if app.draftQuote}
         <pre class="quote muted selectable">{d.quote}</pre>
       {:else}
-        <p class="hint quote-hint"><b>⌃q</b> mostra citazione</p>
+        <button class="hint quote-hint" onclick={() => runCommand('quote')}><b>⌃q</b> mostra citazione</button>
       {/if}
     {/if}
 
     <div class="files">
       <span class="muted">allegati</span>
       {#if d.attachments.length === 0}
-        <span class="muted">nessuno · <b class="key">⌃a</b> per aggiungere</span>
+        <button class="hint" onclick={() => runCommand('attach')}>nessuno · <b>⌃a</b> per aggiungere</button>
       {:else}
         {#each d.attachments as path, i (path + i)}
-          <button class="file" onclick={() => removeFile(i)} title="clic per rimuovere">
-            {path.split(/[\\/]/).pop()}
-          </button>
+          <span class="file" title={path}>
+            {fileName(path)}
+            <button class="remove" onclick={() => removeAttachment(i)} title="rimuovi {fileName(path)}">×</button>
+          </span>
         {/each}
+        <button class="hint" onclick={() => runCommand('attach')}><b>⌃a</b> aggiungi</button>
       {/if}
     </div>
   </div>
@@ -248,8 +246,20 @@
     border-top: var(--line);
   }
 
-  .file:hover {
+  .file {
+    display: inline-flex;
+    gap: 6px;
+  }
+
+  .remove {
+    color: var(--muted);
+  }
+
+  .remove:hover {
     color: var(--red);
+  }
+
+  .file:has(.remove:hover) {
     text-decoration: line-through;
   }
 </style>

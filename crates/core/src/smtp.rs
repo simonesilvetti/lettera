@@ -245,21 +245,25 @@ pub fn build(o: &Outgoing) -> Result<Vec<u8>> {
     b.write_to_vec().map_err(|e| Error::Smtp(e.to_string()))
 }
 
-pub async fn send(ep: &Endpoint, creds: &Credentials, o: &Outgoing, raw: &[u8]) -> Result<()> {
+type Transport = AsyncSmtpTransport<Tokio1Executor>;
+
+fn smtp_err(e: lettre::transport::smtp::Error) -> Error {
+    Error::Smtp(e.to_string())
+}
+
+fn transport(ep: &Endpoint, creds: &Credentials, implicit_tls: bool) -> Result<Transport> {
     use lettre::transport::smtp::client::{Certificate, Tls, TlsParameters};
-    let smtp_err = |e: lettre::transport::smtp::Error| Error::Smtp(e.to_string());
     let mut params = TlsParameters::builder(ep.host.clone());
     if let Ok(path) = std::env::var("LETTERA_CA_FILE") {
         let pem = std::fs::read(&path)?;
         params = params.add_root_certificate(Certificate::from_pem(&pem).map_err(smtp_err)?);
     }
     let params = params.build_rustls().map_err(smtp_err)?;
-    let tls = if ep.implicit_tls {
+    let tls = if implicit_tls {
         Tls::Wrapper(params)
     } else {
         Tls::Required(params)
     };
-    let builder = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&ep.host).tls(tls);
     let (credentials, mechanisms) = match creds {
         Credentials::Password { username, password } => (
             SmtpCredentials::new(username.clone(), password.clone()),
@@ -270,12 +274,56 @@ pub async fn send(ep: &Endpoint, creds: &Credentials, o: &Outgoing, raw: &[u8]) 
             vec![Mechanism::Xoauth2],
         ),
     };
-    let transport = builder
+    Ok(Transport::builder_dangerous(&ep.host)
+        .tls(tls)
         .port(ep.port)
         .credentials(credentials)
         .authentication(mechanisms)
         .timeout(Some(Duration::from_secs(60)))
-        .build();
+        .build())
+}
+
+/// The server answered in clear text to a TLS handshake: it wants STARTTLS
+/// on this port (typically 587 configured as implicit TLS).
+pub fn is_plaintext_reply(e: &str) -> bool {
+    e.contains("InvalidContentType") || e.contains("corrupt message")
+}
+
+/// Runs `op` on a transport for `ep`. If implicit TLS meets a server that
+/// speaks clear text, retries once with STARTTLS (still mandatory TLS).
+/// Also returns whether implicit TLS was the mode that worked.
+async fn with_transport<T, F, Fut>(ep: &Endpoint, creds: &Credentials, op: F) -> Result<(T, bool)>
+where
+    F: Fn(Transport) -> Fut,
+    Fut: std::future::Future<Output = std::result::Result<T, lettre::transport::smtp::Error>>,
+{
+    match op(transport(ep, creds, ep.implicit_tls)?).await {
+        Ok(v) => Ok((v, ep.implicit_tls)),
+        Err(e) if ep.implicit_tls && is_plaintext_reply(&e.to_string()) => {
+            tracing::warn!(
+                "{}:{} non usa TLS implicito, riprovo con STARTTLS (imposta smtp_tls = \"starttls\")",
+                ep.host,
+                ep.port
+            );
+            let v = op(transport(ep, creds, false)?).await.map_err(smtp_err)?;
+            Ok((v, false))
+        }
+        Err(e) => Err(smtp_err(e)),
+    }
+}
+
+/// Connects and authenticates without sending anything. Returns whether
+/// the server is on implicit TLS (`false`: STARTTLS).
+pub async fn check(ep: &Endpoint, creds: &Credentials) -> Result<bool> {
+    let (ok, implicit) =
+        with_transport(ep, creds, |t| async move { t.test_connection().await }).await?;
+    if !ok {
+        return Err(Error::Smtp(format!("{}:{} non risponde", ep.host, ep.port)));
+    }
+    Ok(implicit)
+}
+
+pub async fn send(ep: &Endpoint, creds: &Credentials, o: &Outgoing, raw: &[u8]) -> Result<()> {
     let parse = |a: &str| {
         a.parse::<lettre::Address>()
             .map_err(|e| Error::Smtp(format!("indirizzo non valido {a}: {e}")))
@@ -291,13 +339,25 @@ pub async fn send(ep: &Endpoint, creds: &Credentials, o: &Outgoing, raw: &[u8]) 
     }
     let envelope = SmtpEnvelope::new(Some(parse(&o.from.addr)?), rcpts)
         .map_err(|e| Error::Smtp(e.to_string()))?;
-    transport.send_raw(&envelope, raw).await.map_err(smtp_err)?;
+    with_transport(ep, creds, |t| {
+        let envelope = envelope.clone();
+        async move { t.send_raw(&envelope, raw).await }
+    })
+    .await?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn plaintext_reply_detection() {
+        assert!(is_plaintext_reply(
+            "Connection error: received corrupt message of type InvalidContentType"
+        ));
+        assert!(!is_plaintext_reply("permanent error (535): bad credentials"));
+    }
 
     fn src() -> MessageRow {
         MessageRow {

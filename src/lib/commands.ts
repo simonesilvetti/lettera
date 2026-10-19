@@ -12,6 +12,7 @@ import {
   compose,
   cursorMessage,
   enableImages,
+  fileName,
   flash,
   folderLabel,
   goToRole,
@@ -23,6 +24,7 @@ import {
   openPalette,
   openThread,
   remove,
+  removeAttachment,
   saveAttachment,
   selectAccount,
   selectFolder,
@@ -254,6 +256,24 @@ export const commands: Command[] = [
   { id: 'send', label: 'invia', shortcut: '⌃⏎', keys: ['ctrl+enter'], scope: 'compose', run: send },
   { id: 'attach', label: 'allega', shortcut: '⌃a', keys: ['ctrl+a'], scope: 'compose', run: attach },
   {
+    id: 'remove-attachment',
+    label: 'rimuovi allegato…',
+    alias: 'togli elimina allegato',
+    shortcut: '⌃d',
+    keys: ['ctrl+d'],
+    scope: 'compose',
+    when: () => !!app.draft?.attachments.length,
+    run: () =>
+      openPalette(
+        (app.draft?.attachments ?? []).map((path, i) => ({
+          label: fileName(path),
+          hint: path,
+          run: () => removeAttachment(i),
+        })),
+        'rimuovi allegato',
+      ),
+  },
+  {
     id: 'bcc',
     label: 'ccn',
     shortcut: '⌃b',
@@ -278,4 +298,10 @@ export const commands: Command[] = [
 
 export function byId(id: string): Command | undefined {
   return commands.find((c) => c.id === id);
+}
+
+/** Runs a command from a click, if its context allows it right now. */
+export function runCommand(id: string) {
+  const c = byId(id);
+  if (c && (c.when?.() ?? true)) void c.run();
 }
