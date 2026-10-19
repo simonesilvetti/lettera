@@ -58,6 +58,15 @@ enum Action {
         create: bool,
         raw: Vec<u8>,
     },
+    /// Stores a draft copy (with `\\Draft`) and/or takes away older copies by
+    /// Message-ID: into `trash` when given (Gmail), otherwise expunged.
+    Draft {
+        folder: String,
+        create: bool,
+        raw: Option<Vec<u8>>,
+        remove: Vec<String>,
+        trash: Option<String>,
+    },
     Raw {
         folder: String,
         uid: u32,
@@ -489,6 +498,42 @@ impl Inner {
                     .map(|f| f.id)
                     .collect())
             }
+            Action::Draft {
+                folder,
+                create,
+                raw,
+                remove,
+                trash,
+            } => {
+                if *create {
+                    let _ = c.create(folder).await;
+                }
+                if let Some(raw) = raw {
+                    c.append(folder, "\\Seen \\Draft", raw).await?;
+                }
+                let mut uids = Vec::new();
+                if !remove.is_empty() {
+                    c.select(folder).await?;
+                    for id in remove {
+                        uids.extend(c.search_message_id(id).await?);
+                    }
+                }
+                match trash {
+                    Some(t) => sync::move_messages(c, folder, &uids, t).await?,
+                    None => sync::expunge_messages(c, folder, &uids).await?,
+                }
+                let account_id = self.db.account_id(email)?;
+                if *create {
+                    sync::sync_folder_list(c, &self.db, account_id).await?;
+                }
+                Ok(self
+                    .db
+                    .folders(account_id)?
+                    .into_iter()
+                    .filter(|f| &f.name == folder || Some(&f.name) == trash.as_ref())
+                    .map(|f| f.id)
+                    .collect())
+            }
             Action::Raw { folder, uid, .. } => {
                 let raw = sync::fetch_raw(c, folder, *uid).await?;
                 if let Some(Action::Raw { reply, .. }) = a.take() {
@@ -576,6 +621,12 @@ impl Inner {
                 tasks,
             },
         );
+        let engine = Engine {
+            inner: self.clone(),
+        };
+        let email = acc.email.clone();
+        self.rt
+            .spawn(async move { engine.store_pending_drafts(&email).await });
     }
 
     /// Starts/stops/restarts workers so they match the config.
@@ -1089,6 +1140,18 @@ impl Engine {
 
     pub fn delete(&self, ids: &[i64]) -> Result<()> {
         for (folder, email, rows) in self.by_folder(ids)? {
+            if folder.role.as_deref() == Some("drafts") {
+                for m in &rows {
+                    if let Some(id) = self
+                        .inner
+                        .db
+                        .draft_by_message_id(&email, &m.message_id)?
+                        .and_then(|d| d.id)
+                    {
+                        self.inner.db.delete_draft(id)?;
+                    }
+                }
+            }
             if folder.role.as_deref() == Some("trash") {
                 self.take_away(folder, &email, &rows, None)?;
                 continue;
@@ -1164,15 +1227,19 @@ impl Engine {
         Ok(())
     }
 
-    /// A local draft to resume, or a fresh one built from the source message.
+    /// A fresh draft, built from the source message for replies and forwards.
+    /// A reply or forward already started on that message is resumed instead;
+    /// a new message always starts empty (older ones are in the Drafts folder).
     pub fn prepare_draft(
         &self,
         account: &str,
         kind: DraftKind,
         source: Option<i64>,
     ) -> Result<Draft> {
-        if let Some(d) = self.inner.db.find_draft(account, kind, source)? {
-            return Ok(d);
+        if kind != DraftKind::New {
+            if let Some(d) = self.inner.db.find_draft(account, kind, source)? {
+                return Ok(d);
+            }
         }
         let body = {
             let cfg = self.inner.config.read().unwrap_or_else(|p| p.into_inner());
@@ -1213,19 +1280,185 @@ impl Engine {
             quote: t.quote,
             attachments: Vec::new(),
             saved_at: None,
+            message_id: None,
         })
     }
 
+    /// Local save only (the autosave while writing).
     pub fn save_draft(&self, d: &Draft) -> Result<i64> {
         self.inner.db.save_draft(d)
     }
 
-    pub fn discard_draft(&self, id: i64) -> Result<()> {
-        self.inner.db.delete_draft(id)
+    /// Saves the draft and puts a copy in the server's Drafts folder, in place
+    /// of the previous one, so it is listed there and seen by other clients.
+    /// The local row keeps what the copy cannot (kind, source, quote apart).
+    pub async fn store_draft(&self, mut d: Draft) -> Result<Draft> {
+        let acc = self.inner.account(&d.account)?;
+        let old = d.message_id.take();
+        let message_id = smtp::new_message_id(&acc.email);
+        let raw = smtp::build_draft(&self.outgoing(&acc, &d, message_id.clone()).await?)?;
+        d.message_id = Some(message_id);
+        d.id = Some(self.inner.db.save_draft(&d)?);
+        d.saved_at = Some(chrono::Utc::now().timestamp());
+        self.draft_action(&acc, Some(raw), old.into_iter().collect())?;
+        Ok(d)
     }
 
-    pub async fn send(&self, d: Draft) -> Result<()> {
-        let acc = self.inner.account(&d.account)?;
+    /// Deletes the local draft and its copy in the Drafts folder.
+    pub fn discard_draft(&self, d: &Draft) -> Result<()> {
+        if let Some(id) = d.id {
+            self.inner.db.delete_draft(id)?;
+        }
+        if let Some(mid) = &d.message_id {
+            let acc = self.inner.account(&d.account)?;
+            self.draft_action(&acc, None, vec![mid.clone()])?;
+        }
+        Ok(())
+    }
+
+    /// Opens a message of the Drafts folder for editing: the local draft it
+    /// was stored from, or one rebuilt from the message (another client's).
+    pub async fn edit_draft(&self, message_id: i64) -> Result<Draft> {
+        let m = self.inner.db.message(message_id)?;
+        let email = self.inner.db.account_email(m.account_id)?;
+        if let Some(d) = self.inner.db.draft_by_message_id(&email, &m.message_id)? {
+            return Ok(d);
+        }
+        let raw = self.raw_message(&m).await?;
+        let parsed = parse::parse_body(&raw);
+        let mut attachments = Vec::new();
+        if !parsed.attachments.is_empty() {
+            let dir = self
+                .inner
+                .paths
+                .data_dir
+                .join("drafts")
+                .join(format!("{:016x}", parse::fnv(m.message_id.as_bytes())));
+            tokio::fs::create_dir_all(&dir).await?;
+            for (i, a) in parsed.attachments.iter().enumerate() {
+                let Some(bytes) = parse::extract_attachment(&raw, a.index) else {
+                    continue;
+                };
+                // only the last path component, so a name cannot leave `dir`
+                let name = Path::new(&a.filename)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .filter(|n| !n.is_empty() && n != "..")
+                    .unwrap_or_else(|| format!("attachment-{}", i + 1));
+                let mut path = dir.join(&name);
+                if attachments.iter().any(|p| p == &path.display().to_string()) {
+                    path = dir.join(format!("{}-{name}", i + 1));
+                }
+                tokio::fs::write(&path, bytes).await?;
+                attachments.push(path.display().to_string());
+            }
+        }
+        let source = match &m.in_reply_to {
+            Some(irt) => self.inner.db.message_by_message_id(m.account_id, irt)?,
+            None => None,
+        };
+        let join = |v: &[Addr]| v.iter().map(Addr::full).collect::<Vec<_>>().join(", ");
+        let bcc = parse::bcc(&raw);
+        Ok(Draft {
+            id: None,
+            account: email,
+            kind: if source.is_some() {
+                DraftKind::Reply
+            } else {
+                DraftKind::New
+            },
+            source,
+            to: join(&m.to),
+            cc: join(&m.cc),
+            bcc: join(&bcc),
+            subject: m.subject.clone(),
+            body: parsed.text,
+            quote: String::new(),
+            attachments,
+            saved_at: None,
+            message_id: Some(m.message_id),
+        })
+    }
+
+    /// Queues a change to the Drafts folder. Failures are logged, not
+    /// returned: the local draft is safe either way.
+    fn draft_action(
+        &self,
+        acc: &AccountConfig,
+        raw: Option<Vec<u8>>,
+        remove: Vec<String>,
+    ) -> Result<()> {
+        if raw.is_none() && remove.is_empty() {
+            return Ok(());
+        }
+        let account_id = self.inner.db.account_id(&acc.email)?;
+        let gmail = acc.gmail_semantics();
+        let (folder, create) = match self.inner.db.folder_by_role(account_id, "drafts")? {
+            Some(f) => (f.name, false),
+            None if gmail => ("[Gmail]/Drafts".to_string(), false),
+            None => ("Drafts".to_string(), true),
+        };
+        // on Gmail an expunge only drops the label and the old copy would stay
+        // in All Mail: old versions go to the trash instead
+        let trash = if gmail {
+            Some(
+                self.inner
+                    .db
+                    .folder_by_role(account_id, "trash")?
+                    .map(|f| f.name)
+                    .unwrap_or_else(|| "[Gmail]/Trash".to_string()),
+            )
+        } else {
+            None
+        };
+        let action = Action::Draft {
+            folder,
+            create,
+            raw,
+            remove,
+            trash,
+        };
+        if let Err(e) = self.inner.act(&acc.email, action) {
+            tracing::warn!("draft copy for {}: {e}", acc.email);
+        }
+        Ok(())
+    }
+
+    /// Local drafts that have no copy on the server yet (saved before drafts
+    /// were stored there) get one.
+    async fn store_pending_drafts(&self, account: &str) {
+        let drafts = match self.inner.db.drafts(account) {
+            Ok(d) => d,
+            Err(e) => {
+                tracing::warn!("drafts of {account}: {e}");
+                return;
+            }
+        };
+        let known = self
+            .inner
+            .db
+            .account_id(account)
+            .and_then(|id| self.inner.db.folder_by_role(id, "drafts"))
+            .is_ok_and(|f| f.is_some());
+        if !known {
+            // folders not synced yet: wait rather than guess the folder name
+            return;
+        }
+        for d in drafts.into_iter().filter(|d| d.message_id.is_none()) {
+            if let Err(e) = self.store_draft(d).await {
+                tracing::warn!("draft copy for {account}: {e}");
+            }
+        }
+    }
+
+    /// The message a draft becomes: recipients, body with the quote, threading
+    /// headers and attachments read from disk.
+    async fn outgoing(
+        &self,
+        acc: &AccountConfig,
+        d: &Draft,
+        message_id: String,
+    ) -> Result<Outgoing> {
         let src = match d.source {
             Some(id) if d.kind != DraftKind::New => Some(self.inner.db.message(id)?),
             _ => None,
@@ -1250,7 +1483,7 @@ impl Engine {
             let mime = smtp::guess_mime(&name).to_string();
             attachments.push((name, mime, bytes));
         }
-        let out = Outgoing {
+        Ok(Outgoing {
             from: Addr {
                 name: acc.name.clone(),
                 addr: acc.email.clone(),
@@ -1260,11 +1493,18 @@ impl Engine {
             bcc: parse::parse_recipients(&d.bcc),
             subject: d.subject.trim().to_string(),
             body,
-            message_id: smtp::new_message_id(&acc.email),
+            message_id,
             in_reply_to,
             references,
             attachments,
-        };
+        })
+    }
+
+    pub async fn send(&self, d: Draft) -> Result<()> {
+        let acc = self.inner.account(&d.account)?;
+        let out = self
+            .outgoing(&acc, &d, smtp::new_message_id(&acc.email))
+            .await?;
         let raw = smtp::build(&out)?;
         let creds = self.inner.credentials(&acc).await?;
         smtp::send(&acc.smtp()?, &creds, &out, &raw).await?;
@@ -1297,13 +1537,10 @@ impl Engine {
                 },
             )?;
         }
-        if let (Some(s), DraftKind::Reply | DraftKind::ReplyAll) = (&src, d.kind) {
-            let _ = self.set_flags(&[s.id], &["\\Answered".to_string()], &[]);
+        if let (Some(id), DraftKind::Reply | DraftKind::ReplyAll) = (d.source, d.kind) {
+            let _ = self.set_flags(&[id], &["\\Answered".to_string()], &[]);
         }
-        if let Some(id) = d.id {
-            self.inner.db.delete_draft(id)?;
-        }
-        Ok(())
+        self.discard_draft(&d)
     }
 }
 

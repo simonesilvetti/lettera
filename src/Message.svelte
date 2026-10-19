@@ -5,6 +5,7 @@
   import {
     app,
     flash,
+    isDraftMessage,
     longDate,
     saveAttachment,
     shortDate,
@@ -148,6 +149,12 @@
     {/if}
 
     <div class="actions">
+      {#if isDraftMessage(message)}
+        <button class="hint" onclick={() => run('edit-draft')}><b>i</b> edit draft</button>
+        <span class="muted">·</span>
+        <button class="hint" onclick={() => run('delete')}><b>#</b> delete</button>
+        <span class="muted">·</span>
+      {:else}
       <button class="hint" onclick={() => run('reply')}><b>r</b> reply</button>
       <span class="muted">·</span>
       <button class="hint" onclick={() => run('reply-all')}><b>a</b> reply all</button>
@@ -156,6 +163,7 @@
       <span class="muted">·</span>
       <button class="hint" onclick={() => run('archive')}><b>e</b> archive</button>
       <span class="muted">·</span>
+      {/if}
       <button class="hint" onclick={() => run(html ? 'reading' : 'html')}>
         <b>v</b> {html ? 'reading mode' : 'original html'}
       </button>

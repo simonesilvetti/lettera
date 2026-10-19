@@ -234,8 +234,18 @@ fn save_draft(engine: State<Engine>, draft: Draft) -> Res<i64> {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-fn discard_draft(engine: State<Engine>, id: i64) -> Res<()> {
-    engine.discard_draft(id).map_err(err)
+async fn store_draft(engine: State<'_, Engine>, draft: Draft) -> Res<Draft> {
+    engine.store_draft(draft).await.map_err(err)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn discard_draft(engine: State<Engine>, draft: Draft) -> Res<()> {
+    engine.discard_draft(&draft).map_err(err)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+async fn edit_draft(engine: State<'_, Engine>, message_id: i64) -> Res<Draft> {
+    engine.edit_draft(message_id).await.map_err(err)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -516,7 +526,9 @@ fn main() -> anyhow::Result<()> {
             move_to,
             prepare_draft,
             save_draft,
+            store_draft,
             discard_draft,
+            edit_draft,
             send,
             list_attachments,
             save_attachment,

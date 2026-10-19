@@ -105,6 +105,8 @@ export interface Draft {
   quote: string;
   attachments: string[];
   saved_at: number | null;
+  /** Message-ID of the copy in the server's Drafts folder. */
+  message_id: string | null;
 }
 
 export interface NewAccount {

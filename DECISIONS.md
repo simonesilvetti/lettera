@@ -72,11 +72,11 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 
 ## Composing
 
-- Local-only drafts in SQLite; one per (account, kind, source message): `c`, `r`, `a`, `f` resume the existing one.
+- Drafts live in SQLite (autosave every 5 s) and, on closing the composer, as a copy in the server's Drafts folder (`\Draft`, a fresh Message-ID each time, the previous copy removed by `UID SEARCH HEADER Message-ID`; on Gmail moved to the trash, since an expunge would leave it in All Mail). The local row keeps kind, source and quote and is found again through that Message-ID. `c` always starts a new message; `r`, `a`, `f` resume the reply/forward already started on that message; older drafts are reopened from the Drafts folder with `i`. Drafts made by other clients open too, rebuilt from the message (attachments copied under `data_dir/drafts/`).
 - The quote is kept apart from the body, hidden behind `⌃q` and always appended on send.
 - Signature from the config (`signature`, global or per account, "" = none): put in the draft body after `-- `, above the quote, so it can be seen and edited before sending.
 - Forwarding quotes the original text but does not carry its attachments.
-- `esc`: if everything is saved it closes and the draft stays; with unsaved changes it asks for a second `esc` that discards the draft.
+- `esc` in compose saves to the Drafts folder and closes (asked for by the user); a draft left blank or untouched is not stored. Discarding is `⌃d`, pressed twice.
 - `send` waits for SMTP delivery (a deliberate exception to the 50 ms rule) to show any error right away.
 - Bcc recipients only go into the SMTP envelope, never into headers.
 - Message-ID generated with the sender's domain.
@@ -112,7 +112,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - One instance (`tauri-plugin-single-instance`): a second launch shows the running window. Off in debug builds and with `LETTERA_HOME`, so development copies stay independent.
 - `autostart = true` by default: lettera writes `~/.config/autostart/lettera.desktop` (started with `--hidden`) and removes it when set to false, live on config reload. Only the Flatpak and binaries under `/usr` or `/opt` manage it, never development builds; the Flatpak writes it itself (`xdg-config/autostart:create`) because Omarchy has no Background portal.
 - Left column with four folder icons (inbox, drafts, sent, archive), Tabler outline icons that tilt 6° and turn accent on hover, like the links on simonesilvetti.com; asked for by the user, the second exception to "no icons" after the paperclip.
-- `⌃s` in compose saves the draft and goes back to the list.
+- `⌃s` in compose saves the draft and goes back to the list (same as `esc` since drafts go to the server).
 
 ## Packaging and identity
 

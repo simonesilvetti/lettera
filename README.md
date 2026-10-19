@@ -189,7 +189,8 @@ The same `›` and paperclip appear on each message inside an open conversation.
 | `u` | mark as unread |
 | `s` | toggle flag |
 | `r` / `a` / `f` | reply / reply all / forward |
-| `c` | compose |
+| `c` | compose (always a new message) |
+| `i` | edit draft (on a message in the Drafts folder) |
 | `/` | search (the list filters as you type, full-text search) |
 | `:` | command palette |
 | `v` | original HTML ↔ reading mode |
@@ -202,7 +203,7 @@ The same `›` and paperclip appear on each message inside an open conversation.
 
 The column on the left holds inbox, drafts, sent and archive: click an icon to open that folder (same as `g i`, `g d`, `g s`, `g a`).
 
-The pane with focus has the accent-colored bar (selected row or current message); the other one keeps a muted bar. `⌃` is the Ctrl key (Cmd on macOS). While composing: `⌃⏎` send · `⌃s` save the draft and go back to the list · `⌃a` attach (click an attachment's name to remove it) · `⌃b` show the bcc field · `⌃q` show the quote · `esc` close (with unsaved changes it asks for a second `esc` and discards the draft). Drafts save themselves every 5 seconds and come back when you press `c` again (or `r`/`a`/`f` on the same message). They are kept locally, one new draft per account: they do not appear in the server's Drafts folder.
+The pane with focus has the accent-colored bar (selected row or current message); the other one keeps a muted bar. `⌃` is the Ctrl key (Cmd on macOS). While composing: `⌃⏎` send · `⌃s` save the draft and go back to the list · `⌃a` attach (click an attachment's name to remove it) · `⌃b` show the bcc field · `⌃q` show the quote · `esc` close and keep the draft · `⌃d` twice to discard it. Drafts save themselves every 5 seconds; when you close the composer they go to the server's Drafts folder, so other clients see them too. `c` always starts a new message (`r`/`a`/`f` on a message resume the reply or forward already started there). To continue a draft, open it in the Drafts folder (`g d`) and press `i` (*edit draft*, also shown under the message); drafts written in other clients open the same way.
 
 No shortcut fires while you type in a field, except `esc` and `⌃` combinations. Every command, including those without a key (`move to…`, `go to folder…`, `switch account…`, `open config`, `enable images`, `info`…), is in the palette.
 
@@ -222,13 +223,12 @@ With `theme = "auto"` (or `"omarchy"`) lettera reads `~/.local/state/omarchy/cur
 
 Each account uses three IMAP connections: one for background sync (every 5 minutes and on demand), one for actions and on-demand bodies, one in IDLE on INBOX with automatic reconnection. Actions are optimistic: the list changes at once and the server right after; if something goes wrong the folder is resynced.
 
-Tests: `just test` runs unit tests, parsing of 14 `.eml` fixtures, threading, sync against a fake IMAP server (including `UIDVALIDITY` changes) and the frontend tests. `just test-integration` starts Dovecot and Mailpit in Docker (`docker-compose.test.yml`) and runs the whole engine against real servers: login, sync, IDLE, reply with `In-Reply-To`/`References` and a PDF attachment, copy to Sent, archive, trash, STARTTLS fallback.
+Tests: `just test` runs unit tests, parsing of 14 `.eml` fixtures, threading, sync against a fake IMAP server (including `UIDVALIDITY` changes) and the frontend tests. `just test-integration` starts Dovecot and Mailpit in Docker (`docker-compose.test.yml`) and runs the whole engine against real servers: login, sync, IDLE, drafts stored in and reopened from the Drafts folder, reply with `In-Reply-To`/`References` and a PDF attachment, copy to Sent, archive, trash, STARTTLS fallback.
 
 ## Known limits
 
 - IMAP/SMTP and Gmail only; no JMAP, Exchange/EWS, POP3, PGP, calendar, contacts, filters.
 - Plain-text writing only; forwarding quotes the original text but does not carry its attachments.
-- Drafts stay local (they are not saved to the server's Drafts folder).
 - Sync covers every folder, including *All Mail* on Gmail, within the `sync_months` window (48 months by default); older mail cannot be reached from the app. No CONDSTORE/QRESYNC.
 - Search works on the current folder and finds body text only for messages whose body has been downloaded (automatic prefetch of the last 30 days of INBOX).
 - Non-ASCII folder names in modified UTF-7 are shown as they arrive.

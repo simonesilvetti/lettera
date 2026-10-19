@@ -179,6 +179,9 @@ pub struct Draft {
     pub attachments: Vec<String>,
     #[serde(default)]
     pub saved_at: Option<i64>,
+    /// Message-ID of the copy in the server's Drafts folder, if one was stored.
+    #[serde(default)]
+    pub message_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

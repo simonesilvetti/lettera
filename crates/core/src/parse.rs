@@ -183,6 +183,14 @@ pub fn html_to_text(html: &str) -> String {
     html2text::from_read(html.as_bytes(), 10_000).unwrap_or_else(|_| html.to_string())
 }
 
+/// The Bcc header, kept only in draft copies.
+pub fn bcc(raw: &[u8]) -> Vec<Addr> {
+    MessageParser::default()
+        .parse(raw)
+        .map(|m| addrs(m.bcc()))
+        .unwrap_or_default()
+}
+
 /// Parses a full RFC 5322 message into what the UI shows.
 pub fn parse_body(raw: &[u8]) -> ParsedBody {
     let Some(m) = MessageParser::default().parse(raw) else {

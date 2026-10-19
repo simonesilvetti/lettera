@@ -11,6 +11,7 @@ import type {
   Draft,
   DraftKind,
   FolderInfo,
+  MessageView,
   SyncStatus,
   ThemePayload,
   ThreadSummary,
@@ -471,6 +472,24 @@ export async function saveAttachment(a: AttachmentInfo) {
 // ------------------------------------------------------------------ compose
 
 let autosave: ReturnType<typeof setInterval> | undefined;
+/** Something was typed since the draft was opened. */
+let touched = false;
+/** The body a fresh draft starts with (the signature): unchanged = blank. */
+let initialBody = '';
+
+function openDraft(d: Draft) {
+  app.draft = d;
+  app.draftDirty = false;
+  app.draftSavedAt = d.saved_at;
+  app.draftBcc = !!d.bcc;
+  app.draftQuote = false;
+  app.confirmDiscard = false;
+  app.screen = 'compose';
+  touched = false;
+  initialBody = d.body;
+  clearInterval(autosave);
+  autosave = setInterval(() => void saveDraft(), 5000);
+}
 
 export async function compose(kind: DraftKind) {
   if (!app.account) return;
@@ -480,15 +499,33 @@ export async function compose(kind: DraftKind) {
     return;
   }
   try {
-    app.draft = await api.prepareDraft(app.account, kind, source);
-    app.draftDirty = false;
-    app.draftSavedAt = app.draft.saved_at;
-    app.draftBcc = !!app.draft.bcc;
-    app.draftQuote = false;
-    app.confirmDiscard = false;
-    app.screen = 'compose';
-    clearInterval(autosave);
-    autosave = setInterval(() => void saveDraft(), 5000);
+    openDraft(await api.prepareDraft(app.account, kind, source));
+  } catch (e) {
+    fail(e);
+  }
+}
+
+export function isDraftMessage(m: MessageView): boolean {
+  return app.folders.some((f) => f.id === m.folder_id && f.role === 'drafts');
+}
+
+/** The draft to edit: the message under the cursor, or the thread's last draft. */
+export function draftMessage(): MessageView | undefined {
+  const m = cursorMessage();
+  if (m && isDraftMessage(m)) return m;
+  return app.thread?.messages.filter(isDraftMessage).at(-1);
+}
+
+/** Opens a message of the Drafts folder in the composer. */
+export async function editDraft() {
+  if (!draftMessage() && currentFolder()?.role === 'drafts') await openThread();
+  const m = draftMessage();
+  if (!m) {
+    flash('no draft here', true);
+    return;
+  }
+  try {
+    openDraft(await api.editDraft(m.id));
   } catch (e) {
     fail(e);
   }
@@ -497,6 +534,7 @@ export async function compose(kind: DraftKind) {
 export function touchDraft() {
   app.draftDirty = true;
   app.confirmDiscard = false;
+  touched = true;
 }
 
 export async function saveDraft() {
@@ -517,15 +555,45 @@ function leaveCompose() {
   app.screen = 'inbox';
 }
 
-export async function cancelCompose() {
+/** Nothing worth keeping: no recipients, subject or files, body as it started. */
+function isBlank(d: Draft) {
+  return (
+    !d.to.trim() &&
+    !d.cc.trim() &&
+    !d.bcc.trim() &&
+    !d.subject.trim() &&
+    d.attachments.length === 0 &&
+    (!d.body.trim() || d.body.trim() === initialBody.trim())
+  );
+}
+
+/** `esc`: closes the composer; what was written goes to the Drafts folder. */
+export async function closeCompose() {
+  const d = app.draft;
+  if (!d) return;
+  // opened and left as it was: the stored copy (if any) is still current
+  if (!touched && (d.id === null || d.message_id)) return leaveCompose();
+  if (isBlank(d)) {
+    if (d.id !== null || d.message_id) await api.discardDraft($state.snapshot(d) as Draft).catch(fail);
+    return leaveCompose();
+  }
+  await keepDraft();
+}
+
+/** `⌃d` twice: deletes the draft, here and in the Drafts folder. */
+export async function discardDraft() {
   if (!app.draft) return;
-  if (app.draftDirty && !app.confirmDiscard) {
+  if (!app.confirmDiscard) {
     app.confirmDiscard = true;
     return;
   }
-  if (app.confirmDiscard && app.draft.id !== null) await api.discardDraft(app.draft.id);
-  leaveCompose();
-  if (app.confirmDiscard) flash('draft discarded');
+  try {
+    await api.discardDraft($state.snapshot(app.draft) as Draft);
+    leaveCompose();
+    flash('draft discarded');
+  } catch (e) {
+    fail(e);
+  }
 }
 
 export async function send() {
@@ -549,13 +617,20 @@ async function saveDraftNow() {
   await saveDraft();
 }
 
-/** Saves the draft and goes back to the list; `c`, `r`, `a`, `f` resume it. */
+/** Saves the draft into the Drafts folder and goes back to the list. */
 export async function keepDraft() {
   if (!app.draft) return;
-  await saveDraftNow();
-  if (app.draftDirty) return; // not saved: the error is on screen, stay here
+  clearInterval(autosave);
+  try {
+    await api.storeDraft($state.snapshot(app.draft) as Draft);
+  } catch (e) {
+    // not saved: the error is on screen, stay here
+    fail(e);
+    autosave = setInterval(() => void saveDraft(), 5000);
+    return;
+  }
   leaveCompose();
-  flash('draft saved');
+  flash('saved to drafts');
 }
 
 export async function attach() {

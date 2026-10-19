@@ -12,7 +12,7 @@ use common::fixture;
 use lettera_core::config::{Endpoint, Paths};
 use lettera_core::events::EventSink;
 use lettera_core::imap::{self, Credentials, ImapClient};
-use lettera_core::model::{DraftKind, NewAccount};
+use lettera_core::model::{Draft, DraftKind, NewAccount};
 use lettera_core::Engine;
 use serde_json::Value;
 
@@ -170,6 +170,78 @@ async fn engine_end_to_end() {
     assert!(std::fs::read(&out).unwrap().starts_with(b"%PDF"));
     let html = engine.get_body(root_id, "html").unwrap();
     assert!(html.html.unwrap().contains("default-src 'none'"));
+
+    // drafts: stored in the Drafts folder, replaced on each store, reopened, discarded
+    let mut nd = engine.prepare_draft(&email, DraftKind::New, None).unwrap();
+    nd.to = "anna@esempio.it".into();
+    nd.bcc = "nascosto@esempio.it".into();
+    nd.subject = "Bozza di prova".into();
+    nd.body = "prima versione".into();
+    let mut nd = engine.store_draft(nd).await.expect("store draft");
+    let drafts = wait_for("draft copy", || {
+        engine
+            .list_folders(&email)
+            .ok()?
+            .into_iter()
+            .find(|f| f.role.as_deref() == Some("drafts") && f.total == 1)
+    })
+    .await;
+    let fresh = engine.prepare_draft(&email, DraftKind::New, None).unwrap();
+    assert!(
+        fresh.id.is_none() && fresh.to.is_empty(),
+        "c starts a new message"
+    );
+    nd.body = "seconda versione".into();
+    let nd = engine.store_draft(nd).await.expect("store again");
+    // one copy left, the one of the second store (edit_draft finds the local
+    // draft only through that copy's Message-ID)
+    let start = Instant::now();
+    let copy = loop {
+        let page = engine.list_threads(drafts.id, "", 0, 10).unwrap();
+        if page.total == 1 {
+            let id = page.items[0].ids[0];
+            if let Ok(d) = engine.edit_draft(id).await {
+                if d.message_id == nd.message_id {
+                    break (id, d);
+                }
+            }
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(30),
+            "timeout: draft replaced"
+        );
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    };
+    assert_eq!(copy.1.id, nd.id, "the local draft is reopened");
+    assert_eq!(copy.1.body, "seconda versione");
+    // without the local row (another client's draft): rebuilt from the message
+    engine
+        .save_draft(&Draft {
+            message_id: None,
+            ..nd.clone()
+        })
+        .unwrap();
+    let rebuilt = engine.edit_draft(copy.0).await.expect("edit draft");
+    assert!(rebuilt.id.is_none());
+    assert_eq!(rebuilt.message_id, nd.message_id);
+    assert!(rebuilt.to.contains("anna@esempio.it"));
+    assert!(rebuilt.bcc.contains("nascosto@esempio.it"));
+    assert_eq!(rebuilt.subject, "Bozza di prova");
+    assert!(rebuilt.body.contains("seconda versione"));
+    engine
+        .discard_draft(&Draft {
+            id: nd.id,
+            ..rebuilt
+        })
+        .unwrap();
+    wait_for("draft discarded", || {
+        engine
+            .list_folders(&email)
+            .ok()?
+            .into_iter()
+            .find(|f| f.id == drafts.id && f.total == 0)
+    })
+    .await;
 
     // reply: threading headers, delivery and APPEND into Sent
     let reply_to = view.messages[1].id;

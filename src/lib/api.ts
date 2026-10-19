@@ -37,7 +37,9 @@ export const api = {
   prepareDraft: (account: string, kind: DraftKind, source: number | null) =>
     invoke<Draft>('prepare_draft', { account, kind, source }),
   saveDraft: (draft: Draft) => invoke<number>('save_draft', { draft }),
-  discardDraft: (id: number) => invoke<void>('discard_draft', { id }),
+  storeDraft: (draft: Draft) => invoke<Draft>('store_draft', { draft }),
+  discardDraft: (draft: Draft) => invoke<void>('discard_draft', { draft }),
+  editDraft: (message_id: number) => invoke<Draft>('edit_draft', { message_id }),
   send: (draft: Draft) => invoke<void>('send', { draft }),
   listAttachments: (message_id: number) =>
     invoke<AttachmentInfo[]>('list_attachments', { message_id }),

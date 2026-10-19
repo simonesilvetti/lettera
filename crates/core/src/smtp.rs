@@ -217,6 +217,15 @@ fn blist(v: &[Addr]) -> BAddress<'static> {
 
 /// Builds the message as `text/plain`. Bcc recipients are not written in the headers.
 pub fn build(o: &Outgoing) -> Result<Vec<u8>> {
+    write(o, false)
+}
+
+/// The copy kept in the Drafts folder: like [`build`], plus the Bcc header.
+pub fn build_draft(o: &Outgoing) -> Result<Vec<u8>> {
+    write(o, true)
+}
+
+fn write(o: &Outgoing, with_bcc: bool) -> Result<Vec<u8>> {
     let mut b = MessageBuilder::new()
         .from(baddr(&o.from))
         .subject(o.subject.clone())
@@ -228,6 +237,9 @@ pub fn build(o: &Outgoing) -> Result<Vec<u8>> {
     }
     if !o.cc.is_empty() {
         b = b.cc(blist(&o.cc));
+    }
+    if with_bcc && !o.bcc.is_empty() {
+        b = b.bcc(blist(&o.bcc));
     }
     // ids come from received mail: cleaned again here, whatever stored them
     let ids = |v: &[String]| -> Vec<String> {

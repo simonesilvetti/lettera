@@ -172,6 +172,16 @@ impl ImapClient for MockImap {
             .collect())
     }
 
+    async fn search_message_id(&mut self, id: &str) -> Result<Vec<u32>> {
+        self.log.push(format!("SEARCH MESSAGE-ID {id}"));
+        let f = self.current();
+        Ok(f.messages
+            .iter()
+            .filter(|(_, (_, raw))| lettera_core::parse::parse_envelope(raw).message_id == id)
+            .map(|(u, _)| *u)
+            .collect())
+    }
+
     async fn fetch_raw(&mut self, uid_set: &str) -> Result<Vec<(u32, Vec<u8>)>> {
         self.log.push(format!("FETCH RAW {uid_set}"));
         let uids = self.uids(uid_set);

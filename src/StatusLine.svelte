@@ -1,6 +1,6 @@
 <script lang="ts">
   import { byId, runCommand } from './lib/commands';
-  import { app, clock } from './lib/state.svelte';
+  import { app, clock, currentFolder } from './lib/state.svelte';
 
   /** A key hint; with `run` it is also a button. */
   interface Hint {
@@ -27,11 +27,11 @@
 
   const hints = $derived.by((): Hint[] => {
     if (app.screen === 'compose') {
-      if (app.confirmDiscard) return [hint('cancel', 'again to discard')];
-      const list = [hint('send'), hint('save-draft', 'save & close'), hint('attach')];
+      if (app.confirmDiscard) return [hint('discard', 'again to discard'), hint('cancel', 'keep it')];
+      const list = [hint('send'), hint('cancel', 'save to drafts & close'), hint('attach')];
       list.push(hint('bcc'));
       if (app.draft?.quote) list.push(hint('quote', app.draftQuote ? 'hide quote' : 'show quote'));
-      list.push(hint('cancel'));
+      list.push(hint('discard', 'discard'));
       return list;
     }
     if (app.screen === 'setup') {
@@ -41,6 +41,16 @@
       return list;
     }
     if (app.focus === 'search') return [hint('search-done', 'confirm', '⏎'), hint('search-cancel', 'cancel', 'esc')];
+    if (currentFolder()?.role === 'drafts')
+      return [
+        { key: 'hjkl', label: 'navigate' },
+        hint('open', 'open'),
+        hint('edit-draft'),
+        hint('delete'),
+        hint('compose'),
+        hint('search'),
+        hint('palette'),
+      ];
     return [
       { key: 'hjkl', label: 'navigate' },
       hint('open', 'open'),

@@ -784,6 +784,60 @@ impl Db {
         }))
     }
 
+    /// Every local draft of the account, newest first.
+    pub fn drafts(&self, account: &str) -> Result<Vec<Draft>> {
+        let c = self.lock();
+        let mut stmt =
+            c.prepare("SELECT id, data FROM drafts WHERE account = ?1 ORDER BY updated_at DESC")?;
+        let rows = stmt
+            .query_map([account], |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, s)| {
+                serde_json::from_str::<Draft>(&s).ok().map(|mut d| {
+                    d.id = Some(id);
+                    d
+                })
+            })
+            .collect())
+    }
+
+    /// The local draft whose copy in the Drafts folder has this Message-ID.
+    pub fn draft_by_message_id(&self, account: &str, message_id: &str) -> Result<Option<Draft>> {
+        Ok(self
+            .drafts(account)?
+            .into_iter()
+            .find(|d| d.message_id.as_deref() == Some(message_id)))
+    }
+
+    pub fn draft(&self, id: i64) -> Result<Option<Draft>> {
+        let data: Option<String> = self
+            .lock()
+            .query_row("SELECT data FROM drafts WHERE id = ?1", [id], |r| r.get(0))
+            .optional()?;
+        Ok(data.and_then(|s| {
+            serde_json::from_str::<Draft>(&s).ok().map(|mut d| {
+                d.id = Some(id);
+                d
+            })
+        }))
+    }
+
+    /// Database id of a message of the account with this Message-ID.
+    pub fn message_by_message_id(&self, account_id: i64, message_id: &str) -> Result<Option<i64>> {
+        Ok(self
+            .lock()
+            .query_row(
+                "SELECT id FROM messages WHERE account_id = ?1 AND message_id = ?2 LIMIT 1",
+                params![account_id, message_id],
+                |r| r.get(0),
+            )
+            .optional()?)
+    }
+
     pub fn delete_draft(&self, id: i64) -> Result<()> {
         self.lock()
             .execute("DELETE FROM drafts WHERE id = ?1", [id])?;

@@ -54,6 +54,8 @@ pub trait ImapClient: Send {
         &mut self,
         date: chrono::NaiveDate,
     ) -> impl Future<Output = Result<Vec<u32>>> + Send;
+    /// `UID SEARCH HEADER Message-ID <id>` on the selected folder.
+    fn search_message_id(&mut self, id: &str) -> impl Future<Output = Result<Vec<u32>>> + Send;
     /// Full RFC 5322 bytes for each UID in the set.
     fn fetch_raw(
         &mut self,
@@ -419,6 +421,15 @@ impl ImapClient for RealImap {
 
     async fn search_since(&mut self, date: chrono::NaiveDate) -> Result<Vec<u32>> {
         let query = format!("SINCE {}", date.format("%d-%b-%Y"));
+        Ok(self.session.uid_search(query).await?.into_iter().collect())
+    }
+
+    async fn search_message_id(&mut self, id: &str) -> Result<Vec<u32>> {
+        let id = crate::parse::clean_id(id).replace(['"', '\\'], "");
+        if id.is_empty() {
+            return Ok(Vec::new());
+        }
+        let query = format!("HEADER Message-ID \"{id}\"");
         Ok(self.session.uid_search(query).await?.into_iter().collect())
     }
 
