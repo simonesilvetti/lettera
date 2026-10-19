@@ -21,7 +21,7 @@ inbox  12 unread · 240                                              simone@exam
    Marco Bianchi   October invoice    │ ─────────────────────────────────────────────
                                       │  Giulia Verdi               sun 18 oct 10:02
 ──────────────────────────────────────┴──────────────────────────────────────────────
-j/k navigate · ⏎ open · e archive · r reply · c compose · / search · : commands   sync 22:14 ●
+hjkl navigate · ⏎ open · e archive · r reply · c compose · / search · : commands   sync 22:14 ●
 ```
 
 ## Requirements
@@ -171,7 +171,9 @@ Each row shows sender (with the thread's message count), subject and date. Small
 
 | key | action |
 |---|---|
-| `j` / `k`, `↓` / `↑` | move through the list (or the messages of the open thread) |
+| `j` / `k`, `↓` / `↑` | move through the list, or through the messages when the thread has focus |
+| `l` / `→` | from the list: open the selected thread and move focus to it · in the thread: expand the message |
+| `h` / `←` | back to the list (the thread stays open) |
 | `⏎` | open the thread · expand/collapse the message |
 | `esc` | close / back / clear the search |
 | `e` | archive |
@@ -190,7 +192,7 @@ Each row shows sender (with the thread's message count), subject and date. Small
 | `⌃1` … `⌃9` | switch account |
 | `R` | sync now |
 
-`⌃` is the Ctrl key (Cmd on macOS). While composing: `⌃⏎` send · `⌃a` attach (click an attachment's name to remove it) · `⌃b` show the bcc field · `⌃q` show the quote · `esc` close (with unsaved changes it asks for a second `esc` and discards the draft). Drafts save themselves every 5 seconds and come back when you press `c` again (or `r`/`a`/`f` on the same message).
+The pane with focus has the accent-colored bar (selected row or current message); the other one keeps a muted bar. `⌃` is the Ctrl key (Cmd on macOS). While composing: `⌃⏎` send · `⌃a` attach (click an attachment's name to remove it) · `⌃b` show the bcc field · `⌃q` show the quote · `esc` close (with unsaved changes it asks for a second `esc` and discards the draft). Drafts save themselves every 5 seconds and come back when you press `c` again (or `r`/`a`/`f` on the same message).
 
 No shortcut fires while you type in a field, except `esc` and `⌃` combinations. Every command, including those without a key (`move to…`, `go to folder…`, `switch account…`, `open config`, `enable images`, `info`…), is in the palette.
 

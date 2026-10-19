@@ -31,7 +31,7 @@
   });
 </script>
 
-<div class="list" bind:this={el} bind:clientHeight={height} onscroll={() => (scrollTop = el?.scrollTop ?? 0)}>
+<div class="list" class:away={app.focus === 'thread'} bind:this={el} bind:clientHeight={height} onscroll={() => (scrollTop = el?.scrollTop ?? 0)}>
   {#if app.loaded && app.total === 0}
     <p class="empty muted">{app.query ? 'no results' : 'no messages'}</p>
   {:else if !app.folderId}
@@ -123,6 +123,11 @@
   .row.selected {
     background: var(--surface);
     box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  /* focus is on the thread: the selection stays visible but quiet */
+  .away .row.selected {
+    box-shadow: inset 2px 0 0 var(--muted);
   }
 
   .dot {

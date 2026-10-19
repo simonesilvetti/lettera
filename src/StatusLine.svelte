@@ -42,7 +42,7 @@
     }
     if (app.focus === 'search') return [hint('search-done', 'confirm', '⏎'), hint('search-cancel', 'cancel', 'esc')];
     return [
-      { key: 'j/k', label: 'navigate' },
+      { key: 'hjkl', label: 'navigate' },
       hint('open', 'open'),
       hint('archive'),
       hint('reply'),

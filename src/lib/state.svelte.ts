@@ -269,6 +269,14 @@ export function closeThread() {
   if (app.focus === 'thread') app.focus = 'list';
 }
 
+/** Moves focus to the right pane: the selected thread, opened if it is not already. */
+export async function focusThread() {
+  const summary = app.items[app.selected];
+  if (!summary) return;
+  if (app.thread && app.threadKey === summary.thread_id) app.focus = 'thread';
+  else await openThread();
+}
+
 export async function openThread(index = app.selected) {
   const summary = app.items[index];
   if (!summary) return;

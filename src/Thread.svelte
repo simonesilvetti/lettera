@@ -16,7 +16,7 @@
       <Message {message} {index} />
     {/each}
   {:else}
-    <p class="empty muted">{app.total ? '⏎ to open the selected thread' : ''}</p>
+    <p class="empty muted">{app.total ? '⏎ or l to open the selected thread' : ''}</p>
   {/if}
 </section>
 

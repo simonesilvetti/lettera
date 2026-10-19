@@ -85,6 +85,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Key hints are also buttons that run the registry command; disabled when the command is not available.
 - Removing an attachment while composing: click its name.
 - `open config` uses `gio open` on Linux (terminal editors open in a terminal), the opener plugin as a fallback and inside Flatpak.
+- Vim-style panes: `h`/`←` focus the list without closing the thread, `l`/`→` open/focus the selected thread, and in the thread expand the current message (never collapse: that stays on `⏎`). The inactive pane's selection bar turns muted.
 - Opening a thread marks it read; `u` marks it unread and closes the thread.
 - Archiving or deleting with a thread open opens the next thread.
 - Virtual list with fixed-height rows (38 px), group headers included.
