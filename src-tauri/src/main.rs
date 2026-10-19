@@ -162,17 +162,20 @@ async fn add_account(engine: State<'_, Engine>, account: NewAccount) -> Res<()> 
     engine.add_account(account).await.map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+// Commands that read or write the database are `async`: Tauri runs plain
+// commands on the main thread, so a 50-150 ms query (a 13k-message INBOX, or
+// the database busy with a sync) froze the window for that long.
+#[tauri::command(async, rename_all = "snake_case")]
 fn remove_account(engine: State<Engine>, email: String) -> Res<()> {
     engine.remove_account(&email).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn list_folders(engine: State<Engine>, account: String) -> Res<Vec<FolderInfo>> {
     engine.list_folders(&account).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn list_threads(
     engine: State<Engine>,
     folder: i64,
@@ -185,27 +188,27 @@ fn list_threads(
         .map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn get_thread(engine: State<Engine>, thread_id: String) -> Res<ThreadView> {
     engine.get_thread(&thread_id).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn prefetch_folder(engine: State<Engine>, folder_id: i64) -> Res<()> {
     engine.prefetch_folder(folder_id).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn prefetch_thread(engine: State<Engine>, thread_id: String) -> Res<()> {
     engine.prefetch_thread(&thread_id).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn get_body(engine: State<Engine>, message_id: i64, mode: String) -> Res<BodyView> {
     engine.get_body(message_id, &mode).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn set_flags(
     engine: State<Engine>,
     message_ids: Vec<i64>,
@@ -215,22 +218,22 @@ fn set_flags(
     engine.set_flags(&message_ids, &add, &remove).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn archive(engine: State<Engine>, message_ids: Vec<i64>) -> Res<()> {
     engine.archive(&message_ids).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn delete(engine: State<Engine>, message_ids: Vec<i64>) -> Res<()> {
     engine.delete(&message_ids).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn move_to(engine: State<Engine>, message_ids: Vec<i64>, folder: i64) -> Res<()> {
     engine.move_to(&message_ids, folder).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn prepare_draft(
     engine: State<Engine>,
     account: String,
@@ -240,7 +243,7 @@ fn prepare_draft(
     engine.prepare_draft(&account, kind, source).map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn save_draft(engine: State<Engine>, draft: Draft) -> Res<i64> {
     engine.save_draft(&draft).map_err(err)
 }
@@ -250,7 +253,7 @@ async fn store_draft(engine: State<'_, Engine>, draft: Draft) -> Res<Draft> {
     engine.store_draft(draft).await.map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn discard_draft(engine: State<Engine>, draft: Draft) -> Res<()> {
     engine.discard_draft(&draft).map_err(err)
 }
@@ -265,7 +268,7 @@ async fn send(engine: State<'_, Engine>, draft: Draft) -> Res<()> {
     engine.send(draft).await.map_err(err)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn list_attachments(engine: State<Engine>, message_id: i64) -> Res<Vec<AttachmentInfo>> {
     engine.list_attachments(message_id).map_err(err)
 }
@@ -438,7 +441,7 @@ fn enable_images(engine: State<Engine>, message_id: i64) {
     engine.enable_images(message_id);
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command(async, rename_all = "snake_case")]
 fn suggest_contacts(engine: State<Engine>, query: String) -> Res<Vec<Addr>> {
     engine.suggest_contacts(&query).map_err(err)
 }

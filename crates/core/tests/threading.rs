@@ -78,6 +78,33 @@ fn references_chain_and_subject_fallback() {
 }
 
 #[test]
+fn list_row_shows_the_newest_message() {
+    let (db, acc, inbox) = setup();
+    // the newest message is not the last row inserted
+    for (uid, name) in [
+        (1, "01_plain.eml"),
+        (4, "04_subject_only_same_people.eml"),
+        (3, "03_reply_in_reply_to_only.eml"),
+        (2, "02_reply_with_references.eml"),
+    ] {
+        insert(&db, acc, inbox, uid, name);
+    }
+    let page = db
+        .list_threads(inbox, "", 0, 50, chrono::Local::now())
+        .unwrap();
+    assert_eq!((page.total, page.items.len()), (1, 1));
+    let row = &page.items[0];
+    let view = db.thread(&row.thread_id).unwrap();
+    let newest = view.messages.iter().max_by_key(|m| (m.date, m.id)).unwrap();
+    assert_eq!(row.date, newest.date);
+    assert_eq!(row.from, newest.from.display());
+    assert_eq!(row.count, 4);
+    assert_eq!(row.ids.len(), 4);
+    assert_eq!(page.groups.iter().map(|g| g.count).sum::<i64>(), 1);
+    assert_eq!(page.unread, 1);
+}
+
+#[test]
 fn children_arriving_first_are_adopted() {
     let (db, acc, inbox) = setup();
     // the In-Reply-To-only reply arrives before its parent

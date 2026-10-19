@@ -17,7 +17,10 @@ use crate::thread;
 /// been seen yet. Servers hand out UIDs from 1 upwards: they never get here.
 pub const LOCAL_UID_BASE: u32 = 0xFFF0_0000;
 
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/0001_init.sql"),
+    include_str!("../migrations/0002_thread_index.sql"),
+];
 
 pub struct Db {
     conn: Mutex<Connection>,
@@ -495,51 +498,58 @@ impl Db {
         now: chrono::DateTime<chrono::Local>,
     ) -> Result<ThreadPage> {
         let fts = fts_query(query);
-        let base = match &fts {
-            Some(_) => "SELECT * FROM messages WHERE folder_id = ?1 AND id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?2)",
-            None => "SELECT * FROM messages WHERE folder_id = ?1 AND ?2 IS NULL",
+        let filter = match &fts {
+            Some(_) => "folder_id = ?1 AND id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?2)",
+            None => "folder_id = ?1 AND ?2 IS NULL",
         };
         let c = self.lock();
-        let p = params![folder_id, fts];
-        let total: i64 = c.query_row(
-            &format!("WITH m AS ({base}) SELECT COUNT(DISTINCT thread_id) FROM m"),
-            p,
-            |r| r.get(0),
-        )?;
-        let unread: i64 = c.query_row(
-            &format!("WITH m AS ({base}) SELECT COUNT(DISTINCT thread_id) FROM m WHERE instr(flags, '\\Seen') = 0"),
-            p,
-            |r| r.get(0),
-        )?;
         let (today, yesterday, week) = day_boundaries(now);
-        let mut groups = Vec::new();
-        {
-            let mut stmt = c.prepare(&format!(
-                "WITH m AS ({base}), t AS (SELECT MAX(date) d FROM m GROUP BY thread_id)
-                 SELECT CASE WHEN d >= ?3 THEN 0 WHEN d >= ?4 THEN 1 WHEN d >= ?5 THEN 2 ELSE 3 END b, COUNT(*)
-                 FROM t GROUP BY b ORDER BY b"
-            ))?;
-            let labels = ["today", "yesterday", "this week", "earlier"];
-            let rows = stmt.query_map(params![folder_id, fts, today, yesterday, week], |r| {
-                Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?))
-            })?;
-            for row in rows {
-                let (b, count) = row?;
-                groups.push(DateGroup {
-                    label: labels[b.clamp(0, 3) as usize].to_string(),
-                    count,
-                });
-            }
-        }
+        // one pass over the folder for the counts and the date groups
+        let (total, unread, buckets) = c.query_row(
+            &format!(
+                "WITH t AS (SELECT MAX(date) d, MAX(instr(flags, '\\Seen') = 0) u
+                            FROM messages WHERE {filter} GROUP BY thread_id)
+                 SELECT COUNT(*), COALESCE(SUM(u), 0), COALESCE(SUM(d >= ?3), 0),
+                        COALESCE(SUM(d < ?3 AND d >= ?4), 0), COALESCE(SUM(d < ?4 AND d >= ?5), 0),
+                        COALESCE(SUM(d < ?5), 0)
+                 FROM t"
+            ),
+            params![folder_id, fts, today, yesterday, week],
+            |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i64>(1)?,
+                    [r.get::<_, i64>(2)?, r.get(3)?, r.get(4)?, r.get(5)?],
+                ))
+            },
+        )?;
+        let groups = ["today", "yesterday", "this week", "earlier"]
+            .iter()
+            .zip(buckets)
+            .filter(|(_, count)| *count > 0)
+            .map(|(label, count)| DateGroup {
+                label: label.to_string(),
+                count,
+            })
+            .collect();
+        // the page first, then the details of its threads only; sender and
+        // subject are the newest message's
         let mut stmt = c.prepare(&format!(
-            "WITH m AS ({base})
-             SELECT thread_id, MAX(date) AS d, from_name, from_addr, subject, COUNT(*),
-                    SUM(instr(flags, '\\Seen') = 0), SUM(instr(flags, '\\Flagged') > 0),
-                    MAX(has_attachments), group_concat(id),
+            "WITH t AS (SELECT thread_id, MAX(date) AS d FROM messages WHERE {filter}
+                        GROUP BY thread_id ORDER BY d DESC, thread_id LIMIT ?3 OFFSET ?4)
+             SELECT t.thread_id, t.d,
+                    (SELECT from_name FROM messages x WHERE {fx} AND x.thread_id = t.thread_id ORDER BY x.date DESC, x.id DESC LIMIT 1),
+                    (SELECT from_addr FROM messages x WHERE {fx} AND x.thread_id = t.thread_id ORDER BY x.date DESC, x.id DESC LIMIT 1),
+                    (SELECT subject FROM messages x WHERE {fx} AND x.thread_id = t.thread_id ORDER BY x.date DESC, x.id DESC LIMIT 1),
+                    COUNT(*), SUM(instr(m.flags, '\\Seen') = 0), SUM(instr(m.flags, '\\Flagged') > 0),
+                    MAX(m.has_attachments), group_concat(m.id),
                     MAX(EXISTS(SELECT 1 FROM json_each(m.to_addrs) j, accounts a
                                WHERE a.id = m.account_id
                                  AND lower(json_extract(j.value, '$.addr')) = lower(a.email)))
-             FROM m GROUP BY thread_id ORDER BY d DESC, thread_id LIMIT ?3 OFFSET ?4"
+             FROM t JOIN messages m ON m.thread_id = t.thread_id AND {fm}
+             GROUP BY t.thread_id ORDER BY t.d DESC, t.thread_id",
+            fx = filter.replace("folder_id", "x.folder_id").replace(" id IN", " x.id IN"),
+            fm = filter.replace("folder_id", "m.folder_id").replace(" id IN", " m.id IN"),
         ))?;
         let items = stmt
             .query_map(params![folder_id, fts, limit, offset], |r| {
