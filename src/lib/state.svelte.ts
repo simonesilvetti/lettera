@@ -316,8 +316,16 @@ export async function loadBody(id: number) {
   try {
     const body = await api.getBody(id, app.htmlMode[id] ? 'html' : 'text');
     app.bodies[id] = body;
+    if (!body.ready) return;
+    // Always ask: before the body was downloaded `has_attachments` was only a
+    // guess from the headers (multipart/mixed), and it may have been wrong.
+    const files = await api.listAttachments(id);
+    app.attachments[id] = files;
+    const has = files.length > 0;
     const msg = app.thread?.messages.find((m) => m.id === id);
-    if (body.ready && msg?.has_attachments) app.attachments[id] = await api.listAttachments(id);
+    if (msg) msg.has_attachments = has;
+    const row = app.items.find((t) => t?.ids.includes(id));
+    if (row && has) row.has_attachments = true;
   } catch (e) {
     fail(e);
   }
