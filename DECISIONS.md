@@ -44,6 +44,8 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - `has_attachments` is guessed from the header (`multipart/mixed`) until the body arrives, then corrected by parsing; no BODYSTRUCTURE.
 - Attachments are not stored on disk: the message is downloaded again when the user saves an attachment.
 - Optimistic actions: SQLite changes at once, the server afterwards; UIDs being moved are skipped by sync so they do not reappear.
+- Flag changes apply to every copy of the message (same Message-ID in other folders), locally and on the server: the thread view shows one copy, the list may show another.
+- A panic inside a sync or action job is turned into an error, so the worker keeps running.
 - If an action fails on the server the account is resynced: the server is the truth and the list becomes consistent again.
 - After each action the folders involved (source and destination) are resynced.
 - Queued sync requests are merged into one.

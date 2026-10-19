@@ -140,6 +140,16 @@ async fn check_alive(conn: &mut Option<RealImap>, used: Instant) {
     }
 }
 
+/// A panic inside a job becomes an error: otherwise it ends the worker's task
+/// and the account silently stops syncing (or acting) until restart.
+async fn guarded<T>(job: impl std::future::Future<Output = Result<T>>) -> Result<T> {
+    use futures::FutureExt;
+    std::panic::AssertUnwindSafe(job)
+        .catch_unwind()
+        .await
+        .unwrap_or_else(|_| Err(Error::Other("internal error (panic), see the log".into())))
+}
+
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
 }
@@ -356,12 +366,12 @@ impl Inner {
             }
             self.status(&email, SyncState::Syncing, "sync");
             check_alive(&mut conn, used).await;
-            let mut res = self.run_sync(&email, &mut conn, &job).await;
+            let mut res = guarded(self.run_sync(&email, &mut conn, &job)).await;
             used = Instant::now();
             if res.is_err() && conn.is_some() {
                 // stale connection: one fresh attempt
                 conn = None;
-                res = self.run_sync(&email, &mut conn, &job).await;
+                res = guarded(self.run_sync(&email, &mut conn, &job)).await;
             }
             match res {
                 Ok(()) => {
@@ -596,11 +606,11 @@ impl Inner {
         while let Some(action) = rx.recv().await {
             let mut slot = Some(action);
             check_alive(&mut conn, used).await;
-            let mut res = self.run_action(&email, &mut conn, &mut slot).await;
+            let mut res = guarded(self.run_action(&email, &mut conn, &mut slot)).await;
             used = Instant::now();
             if res.is_err() && slot.is_some() {
                 conn = None;
-                res = self.run_action(&email, &mut conn, &mut slot).await;
+                res = guarded(self.run_action(&email, &mut conn, &mut slot)).await;
             }
             if let Some(a) = &slot {
                 self.release(a);
@@ -1101,6 +1111,10 @@ impl Engine {
     }
 
     pub fn set_flags(&self, ids: &[i64], add: &[String], remove: &[String]) -> Result<()> {
+        // a thread shows one row per message, but the list may show another
+        // copy of it (INBOX vs Important on Gmail): change them all
+        let ids = self.inner.db.with_copies(ids)?;
+        let ids = &ids[..];
         self.inner.db.change_flags(ids, add, remove)?;
         for (folder, email, rows) in self.by_folder(ids)? {
             self.changed(&email, folder.id);

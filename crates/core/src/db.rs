@@ -436,6 +436,27 @@ impl Db {
     }
 
     /// Local, optimistic flag change. Returns the new flag strings.
+    /// `ids` plus every other row of the same message (same account and
+    /// Message-ID) in other folders.
+    pub fn with_copies(&self, ids: &[i64]) -> Result<Vec<i64>> {
+        let c = self.lock();
+        let mut stmt = c.prepare(
+            "SELECT o.id FROM messages m JOIN messages o
+             ON o.account_id = m.account_id AND o.message_id = m.message_id
+             WHERE m.id = ?1 AND m.message_id != ''",
+        )?;
+        let mut all = ids.to_vec();
+        for id in ids {
+            for o in stmt.query_map([id], |r| r.get::<_, i64>(0))? {
+                let o = o?;
+                if !all.contains(&o) {
+                    all.push(o);
+                }
+            }
+        }
+        Ok(all)
+    }
+
     pub fn change_flags(&self, ids: &[i64], add: &[String], remove: &[String]) -> Result<()> {
         let mut c = self.lock();
         let tx = c.transaction()?;

@@ -103,6 +103,25 @@ fn same_message_in_two_folders_shares_thread() {
 }
 
 #[test]
+fn reading_one_copy_reads_them_all() {
+    let (db, acc, inbox) = setup();
+    let important = db.upsert_folder(acc, "Important", Some("/"), None).unwrap();
+    insert(&db, acc, important, 5, "01_plain.eml");
+    insert(&db, acc, inbox, 9, "01_plain.eml");
+    insert(&db, acc, inbox, 10, "02_reply_with_references.eml");
+    // the thread shows the Important copy, the list the INBOX one
+    let shown = db.thread(&thread_of(&db, inbox, 9)).unwrap().messages[0].id;
+    let ids = db.with_copies(&[shown]).unwrap();
+    assert_eq!(ids.len(), 2);
+    db.change_flags(&ids, &["\\Seen".into()], &[]).unwrap();
+    for (folder, uid) in [(inbox, 9), (important, 5)] {
+        let flags = db.uid_flags(folder).unwrap();
+        let (_, f) = flags.iter().find(|(u, _)| *u == uid).unwrap();
+        assert!(f.contains("\\Seen"), "{folder}/{uid}: {f}");
+    }
+}
+
+#[test]
 fn full_text_search() {
     let (db, acc, inbox) = setup();
     insert(&db, acc, inbox, 1, "01_plain.eml");

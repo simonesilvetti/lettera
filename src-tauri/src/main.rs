@@ -82,31 +82,33 @@ impl Sink {
         let account = payload["account"].as_str().unwrap_or("").to_string();
         let id = first["id"].as_i64().unwrap_or(0);
 
+        // Called from the engine's tokio workers: notify-rust talks D-Bus
+        // through zbus, whose blocking API starts its own runtime and panics
+        // inside another one (that killed the sync worker). Its own thread.
         #[cfg(target_os = "linux")]
-        {
+        let icon = self.icon.clone();
+        #[cfg(target_os = "linux")]
+        let app = self.app.clone();
+        #[cfg(target_os = "linux")]
+        std::thread::spawn(move || {
             let mut n = notify_rust::Notification::new();
             n.appname("lettera")
                 .summary(&title)
                 .body(&body)
                 .action("default", "Open");
-            if let Some(icon) = &self.icon {
+            if let Some(icon) = &icon {
                 n.icon(&icon.display().to_string());
             }
             match n.show() {
-                Ok(handle) => {
-                    let app = self.app.clone();
-                    // blocks until the notification is clicked or closed
-                    std::thread::spawn(move || {
-                        handle.wait_for_action(|action| {
-                            if action == "default" {
-                                open_from_notification(&app, &account, id);
-                            }
-                        });
-                    });
-                }
+                // blocks until the notification is clicked or closed
+                Ok(handle) => handle.wait_for_action(|action| {
+                    if action == "default" {
+                        open_from_notification(&app, &account, id);
+                    }
+                }),
                 Err(e) => tracing::debug!("notification: {e}"),
             }
-        }
+        });
         #[cfg(not(target_os = "linux"))]
         {
             let _ = (&account, id, &self.icon);
