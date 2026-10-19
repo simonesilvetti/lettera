@@ -11,7 +11,7 @@ It supports two kinds of accounts, side by side:
 - **Generic IMAP**: IMAP + SMTP with user and password (implicit TLS or STARTTLS);
 - **Google**: Gmail over IMAP and SMTP with OAuth2 (`XOAUTH2`), no Gmail API.
 
-It reads, searches (full text), archives, deletes, moves, replies, forwards and writes plain-text email. It syncs in the background, gets new mail through IDLE and shows a system notification. On Omarchy it takes its colors from the current theme and follows theme switches live.
+It reads, searches (full text), archives, deletes, moves, replies, forwards and writes plain-text email. It syncs in the background, gets new mail through IDLE and shows a system notification (one for several messages arriving together; click it to open the message). On Omarchy it takes its colors from the current theme and follows theme switches live.
 
 ```
 inbox  12 unread · 240                                              simone@example.com

@@ -106,7 +106,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - The Google form asks for client id and secret: before the account exists there is nowhere else to take them from.
 - OAuth with `access_type=offline`, `prompt=consent` and `login_hint`, to always get a refresh token for the right email.
 - The add form suggests `imap.` and `smtp.` of the email's domain; the TLS mode follows the port but can be switched with a click.
-- Notifications are sent by the Rust process, only for unread messages that arrived through IDLE.
+- Notifications are sent by the Rust process, only for unread messages that arrived through IDLE; one per sync ("N new messages" when several arrive together), with the app icon (written to the data dir so the daemon can read it). On Linux they go through `notify-rust` directly, because the Tauri plugin has no click events there: clicking raises the window and opens that message in its INBOX (`open_message` event).
 
 ## Packaging and identity
 

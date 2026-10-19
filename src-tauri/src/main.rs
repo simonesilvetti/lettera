@@ -2,6 +2,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use lettera_core::config::Paths;
@@ -15,6 +16,7 @@ use lettera_core::Engine;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
+#[cfg(not(target_os = "linux"))]
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 
@@ -24,28 +26,116 @@ fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
-struct Sink(AppHandle);
+struct Sink {
+    app: AppHandle,
+    /// PNG of the app icon on disk, for notifications.
+    icon: Option<PathBuf>,
+}
+
+/// What a notification says: one message, or a summary of several.
+fn notification_text(items: &[serde_json::Value]) -> (String, String) {
+    let field = |v: &serde_json::Value, k: &str| v[k].as_str().unwrap_or("").to_string();
+    match items {
+        [one] => (field(one, "from"), field(one, "subject")),
+        _ => {
+            let mut body: Vec<String> = items
+                .iter()
+                .take(4)
+                .map(|m| format!("{} — {}", field(m, "from"), field(m, "subject")))
+                .collect();
+            if items.len() > 4 {
+                body.push(format!("and {} more", items.len() - 4));
+            }
+            (format!("{} new messages", items.len()), body.join("\n"))
+        }
+    }
+}
+
+/// Brings the window to the front and asks the UI to open a message.
+fn open_from_notification(app: &AppHandle, account: &str, id: i64) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+    let _ = app.emit(
+        "open_message",
+        serde_json::json!({ "account": account, "id": id }),
+    );
+}
+
+impl Sink {
+    fn notify(&self, payload: &serde_json::Value) {
+        let items = payload["items"].as_array().cloned().unwrap_or_default();
+        let Some(first) = items.first() else {
+            return;
+        };
+        let (title, body) = notification_text(&items);
+        let account = payload["account"].as_str().unwrap_or("").to_string();
+        let id = first["id"].as_i64().unwrap_or(0);
+
+        #[cfg(target_os = "linux")]
+        {
+            let mut n = notify_rust::Notification::new();
+            n.appname("lettera")
+                .summary(&title)
+                .body(&body)
+                .action("default", "Open");
+            if let Some(icon) = &self.icon {
+                n.icon(&icon.display().to_string());
+            }
+            match n.show() {
+                Ok(handle) => {
+                    let app = self.app.clone();
+                    // blocks until the notification is clicked or closed
+                    std::thread::spawn(move || {
+                        handle.wait_for_action(|action| {
+                            if action == "default" {
+                                open_from_notification(&app, &account, id);
+                            }
+                        });
+                    });
+                }
+                Err(e) => tracing::debug!("notification: {e}"),
+            }
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (&account, id, &self.icon);
+            if let Err(e) = self
+                .app
+                .notification()
+                .builder()
+                .title(title)
+                .body(body)
+                .show()
+            {
+                tracing::debug!("notification: {e}");
+            }
+        }
+    }
+}
 
 impl EventSink for Sink {
     fn emit(&self, name: &str, payload: serde_json::Value) {
         if name == "new_mail" {
-            let from = payload["from"].as_str().unwrap_or("");
-            let subject = payload["subject"].as_str().unwrap_or("");
-            let shown = self
-                .0
-                .notification()
-                .builder()
-                .title(from)
-                .body(subject)
-                .show();
-            if let Err(e) = shown {
-                tracing::debug!("notification: {e}");
-            }
+            self.notify(&payload);
         }
-        if let Err(e) = self.0.emit(name, payload) {
+        if let Err(e) = self.app.emit(name, payload) {
             tracing::warn!("emit {name}: {e}");
         }
     }
+}
+
+/// Writes the icon next to the data so the notification daemon can read it.
+fn notification_icon(paths: &Paths) -> Option<PathBuf> {
+    let path = paths.data_dir.join("icon.png");
+    let bytes = include_bytes!("../icons/128x128.png");
+    if std::fs::read(&path).ok().as_deref() != Some(&bytes[..]) {
+        lettera_core::config::private_dir(&paths.data_dir).ok()?;
+        std::fs::write(&path, bytes).ok()?;
+    }
+    Some(path)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -310,7 +400,12 @@ fn main() -> anyhow::Result<()> {
                     tracing::warn!("opening browser: {e}");
                 }
             });
-            let engine = Engine::start(rt, Paths::detect()?, Arc::new(Sink(handle)), opener)?;
+            let paths = Paths::detect()?;
+            let sink = Sink {
+                icon: notification_icon(&paths),
+                app: handle,
+            };
+            let engine = Engine::start(rt, paths, Arc::new(sink), opener)?;
             app.manage(engine);
             Ok(())
         })
@@ -374,5 +469,19 @@ mod tests {
         ] {
             assert!(!openable(bad), "{bad}");
         }
+    }
+
+    #[test]
+    fn notification_text_single_and_grouped() {
+        let m = |f: &str, s: &str| serde_json::json!({ "from": f, "subject": s, "id": 1 });
+        assert_eq!(
+            super::notification_text(&[m("Anna", "Q4")]),
+            ("Anna".to_string(), "Q4".to_string())
+        );
+        let many: Vec<_> = (0..6).map(|i| m(&format!("P{i}"), "s")).collect();
+        let (title, body) = super::notification_text(&many);
+        assert_eq!(title, "6 new messages");
+        assert_eq!(body.lines().count(), 5);
+        assert!(body.starts_with("P0 — s") && body.ends_with("and 2 more"));
     }
 }

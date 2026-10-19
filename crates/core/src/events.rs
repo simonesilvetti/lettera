@@ -24,6 +24,15 @@ pub enum SyncState {
     Error,
 }
 
+/// One new message, as much as a notification needs to show and open it.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct NewMailItem {
+    pub id: i64,
+    pub thread_id: String,
+    pub from: String,
+    pub subject: String,
+}
+
 #[derive(Debug, Clone)]
 pub enum Event {
     MessagesChanged {
@@ -36,9 +45,11 @@ pub enum Event {
         message: String,
     },
     ThemeChanged(ThemePayload),
+    /// Unread messages that just arrived in an INBOX, newest first: one
+    /// event per sync, so several arrivals make one notification.
     NewMail {
-        from: String,
-        subject: String,
+        account: String,
+        items: Vec<NewMailItem>,
     },
     AuthDone {
         email: String,
@@ -80,7 +91,7 @@ impl Event {
                 "at": chrono::Utc::now().timestamp(),
             }),
             Event::ThemeChanged(t) => json!(t),
-            Event::NewMail { from, subject } => json!({ "from": from, "subject": subject }),
+            Event::NewMail { account, items } => json!({ "account": account, "items": items }),
             Event::AuthDone { email, ok, error } => {
                 json!({ "email": email, "ok": ok, "error": error })
             }

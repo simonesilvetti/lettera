@@ -281,7 +281,21 @@ async fn engine_end_to_end() {
     seed.append("INBOX", "", &fixture("06_multipart_alternative.eml"))
         .await
         .unwrap();
-    wait_for("new_mail", || rec.has("new_mail").then_some(())).await;
+    let mail = wait_for("new_mail", || {
+        rec.0
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(n, _)| n == "new_mail")
+            .map(|(_, p)| p.clone())
+    })
+    .await;
+    assert_eq!(mail["account"], email.as_str());
+    let items = mail["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "one notification for one message");
+    assert!(
+        items[0]["id"].as_i64().unwrap() > 0 && !items[0]["subject"].as_str().unwrap().is_empty()
+    );
     wait_for("inbox refresh", || {
         (engine.list_threads(inbox.id, "", 0, 50).ok()?.total == 2).then_some(())
     })

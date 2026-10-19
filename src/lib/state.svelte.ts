@@ -424,6 +424,25 @@ export async function toggleFlag() {
   }
 }
 
+/** From a notification click: that account's INBOX, with the message's thread open. */
+export async function openMessage(account: string, id: number) {
+  if (app.screen === 'compose') {
+    flash('new mail: finish or close this draft first');
+    return;
+  }
+  app.palette = null;
+  app.screen = 'inbox';
+  if (app.account !== account) await selectAccount(account);
+  const inbox = app.folders.find((f) => f.role === 'inbox');
+  if (!inbox) return;
+  clearTimeout(searchTimer);
+  app.query = '';
+  app.focus = 'list';
+  await selectFolder(inbox.id);
+  const index = app.items.findIndex((t) => t?.ids.includes(id));
+  if (index >= 0) await openThread(index);
+}
+
 export function goToRole(role: string) {
   const f =
     app.folders.find((x) => x.role === role) ??
@@ -601,5 +620,6 @@ export async function start() {
     if (app.bodies[id] || app.thread?.messages.some((m) => m.id === id)) void loadBody(id);
   });
   await on('accounts:changed', () => void loadAccounts());
+  await on('open_message', ({ account, id }) => void openMessage(account, id));
   await loadAccounts();
 }

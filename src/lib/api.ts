@@ -57,7 +57,8 @@ export interface Events {
   'messages:changed': { account: string; folder: number };
   'sync:status': SyncStatus;
   'theme:changed': ThemePayload;
-  new_mail: { from: string; subject: string };
+  new_mail: { account: string; items: { id: number; thread_id: string; from: string; subject: string }[] };
+  open_message: { account: string; id: number };
   'auth:done': { email: string; ok: boolean; error: string | null };
   'body:ready': { id: number };
   'accounts:changed': Record<string, never>;

@@ -2426,6 +2426,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "lettera-core",
+ "notify-rust",
  "serde",
  "serde_json",
  "tauri",

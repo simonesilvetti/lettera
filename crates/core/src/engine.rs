@@ -14,7 +14,7 @@ use tokio::task::JoinHandle;
 use crate::config::{self, AccountConfig, AccountKind, Config, Paths};
 use crate::db::{has_flag, Db, FolderRow, MessageRow};
 use crate::error::{Error, Result};
-use crate::events::{Event, EventSink, SyncState};
+use crate::events::{Event, EventSink, NewMailItem, SyncState};
 use crate::imap::{self, Credentials, ImapClient, RealImap};
 use crate::model::{
     AccountInfo, Addr, AttachmentInfo, BodyView, Draft, DraftKind, FolderInfo, NewAccount,
@@ -268,13 +268,26 @@ impl Inner {
             }
             if f.role.as_deref() == Some("inbox") {
                 if job.notify {
-                    for m in self.db.messages(&r.new_ids)? {
-                        if !has_flag(&m.flags, "\\Seen") {
-                            self.emit(Event::NewMail {
-                                from: m.from.display(),
-                                subject: m.subject.clone(),
-                            });
-                        }
+                    let mut items: Vec<_> = self
+                        .db
+                        .messages(&r.new_ids)?
+                        .into_iter()
+                        .filter(|m| !has_flag(&m.flags, "\\Seen"))
+                        .collect();
+                    items.sort_by_key(|m| std::cmp::Reverse(m.date));
+                    if !items.is_empty() {
+                        self.emit(Event::NewMail {
+                            account: email.to_string(),
+                            items: items
+                                .into_iter()
+                                .map(|m| NewMailItem {
+                                    id: m.id,
+                                    thread_id: m.thread_id.clone(),
+                                    from: m.from.display(),
+                                    subject: m.subject.clone(),
+                                })
+                                .collect(),
+                        });
                     }
                 }
                 let recent = chrono::Utc::now().timestamp() - PREFETCH_DAYS * 86_400;
