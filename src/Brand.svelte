@@ -40,13 +40,13 @@
   .brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     color: var(--fg);
   }
 
   .icon {
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
     flex: none;
   }
 
@@ -60,7 +60,7 @@
 
   .word :global(svg) {
     display: block;
-    height: 17px;
+    height: 14px;
     width: auto;
   }
 
