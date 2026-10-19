@@ -85,7 +85,19 @@ export const commands: Command[] = [
   { id: 'open', label: 'open', shortcut: '⏎', keys: ['enter'], scope: 'list', hidden: true, when: hasThread, run: () => openThread() },
   // left/right move between the two panes; right on a message expands it
   { id: 'focus-thread', label: 'focus thread', keys: ['l', 'arrowright'], scope: 'list', hidden: true, when: hasThread, run: focusThread },
-  { id: 'focus-list', label: 'focus list', keys: ['h', 'arrowleft'], scope: 'thread', hidden: true, run: () => (app.focus = 'list') },
+  {
+    // left: collapse the open message under the cursor, or go back to the list
+    id: 'focus-list',
+    label: 'focus list',
+    keys: ['h', 'arrowleft'],
+    scope: 'thread',
+    hidden: true,
+    run: () => {
+      const m = cursorMessage();
+      if (m && app.expanded[m.id]) toggleExpanded(m.id);
+      else app.focus = 'list';
+    },
+  },
   { id: 'msg-down', label: 'next message', keys: ['j', 'arrowdown'], scope: 'thread', hidden: true, run: () => moveCursor(1) },
   { id: 'msg-up', label: 'previous message', keys: ['k', 'arrowup'], scope: 'thread', hidden: true, run: () => moveCursor(-1) },
   {

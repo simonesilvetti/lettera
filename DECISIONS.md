@@ -85,7 +85,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Key hints are also buttons that run the registry command; disabled when the command is not available.
 - Removing an attachment while composing: click its name.
 - `open config` uses `gio open` on Linux (terminal editors open in a terminal), the opener plugin as a fallback and inside Flatpak.
-- Vim-style panes: `h`/`←` focus the list without closing the thread, `l`/`→` open/focus the selected thread, and in the thread expand the current message (never collapse: that stays on `⏎`). The inactive pane's selection bar turns muted.
+- Vim-style panes: `h`/`←` focus the list without closing the thread, `l`/`→` open/focus the selected thread, and in the thread expand the current message; in the thread `h`/`←` first collapses an open message, then goes back to the list. The inactive pane's selection bar turns muted.
 - Opening a thread marks it read; `u` marks it unread and closes the thread.
 - Archiving or deleting with a thread open opens the next thread.
 - Virtual list with fixed-height rows (38 px), group headers included.
@@ -94,7 +94,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Folders with a role get English labels (inbox, sent, drafts, trash, archive, spam, all mail).
 - Dates in the list: the year appears only if it is not the current one.
 - Square unread dot: no `border-radius`, not even there.
-- List marks: muted `›` when the account's address is in `To:` of any message in the thread (Gmail's convention), in a reserved column so subjects line up; a 1.5px-stroke paperclip before the date for attachments — the only drawn glyph in the app, asked for by the user.
+- List marks: muted `›` when the account's address is in `To:` of any message in the thread (Gmail's convention), in a reserved column so subjects line up; a 1.5px-stroke paperclip before the date for attachments — the only drawn glyph in the app, asked for by the user. Same marks on each message of an open thread (`to_me` computed in the frontend from `MessageView.to`).
 - The Google form asks for client id and secret: before the account exists there is nowhere else to take them from.
 - OAuth with `access_type=offline`, `prompt=consent` and `login_hint`, to always get a refresh token for the right email.
 - The add form suggests `imap.` and `smtp.` of the email's domain; the TLS mode follows the port but can be switched with a click.

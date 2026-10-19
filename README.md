@@ -167,13 +167,15 @@ Each row shows sender (with the thread's message count), subject and date. Small
 - `*` before the subject — flagged;
 - a paperclip before the date — the thread has attachments (guessed from the headers until the body is downloaded).
 
+The same `›` and paperclip appear on each message inside an open conversation.
+
 ## Shortcuts
 
 | key | action |
 |---|---|
 | `j` / `k`, `↓` / `↑` | move through the list, or through the messages when the thread has focus |
 | `l` / `→` | from the list: open the selected thread and move focus to it · in the thread: expand the message |
-| `h` / `←` | back to the list (the thread stays open) |
+| `h` / `←` | in the thread: collapse the open message under the cursor, or go back to the list if it is already collapsed (the thread stays open) |
 | `⏎` | open the thread · expand/collapse the message |
 | `esc` | close / back / clear the search |
 | `e` | archive |

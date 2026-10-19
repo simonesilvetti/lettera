@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Clip from './Clip.svelte';
   import { api } from './lib/api';
   import { byId } from './lib/commands';
   import {
@@ -23,6 +24,8 @@
   const body = $derived(app.bodies[message.id]);
   const html = $derived(!!app.htmlMode[message.id]);
   const files = $derived(app.attachments[message.id] ?? []);
+  // same rule as the list: the account's own address is a To: recipient
+  const toMe = $derived(message.to.some((a) => a.addr.toLowerCase() === app.account.toLowerCase()));
 
   $effect(() => {
     if (isCursor) el?.scrollIntoView({ block: 'nearest' });
@@ -79,16 +82,22 @@
   {#if !expanded}
     <button class="collapsed" onclick={select}>
       <span class="who ellipsis" class:unread={message.unread}>{message.from.name || message.from.addr}</span>
-      <span class="snippet ellipsis muted">{message.snippet}</span>
+      <span class="snippet ellipsis muted"
+        ><span class="to-me" title={toMe ? 'sent to you' : undefined}>{toMe ? '›' : ''}</span>{message.snippet}</span
+      >
+      {#if message.has_attachments}<Clip />{/if}
       <span class="date muted">{shortDate(message.date)}</span>
     </button>
   {:else}
     <button class="top" onclick={select} title={message.from.addr}>
       <strong class="ellipsis">{message.from.name || message.from.addr}</strong>
-      <span class="date muted">{longDate(message.date)}</span>
+      <span class="right">
+        {#if message.has_attachments}<Clip />{/if}
+        <span class="date muted">{longDate(message.date)}</span>
+      </span>
     </button>
     <p class="to muted ellipsis">
-      to {people(message.to) || '—'}{message.cc.length ? `, cc ${people(message.cc)}` : ''}
+      <span class="to-me" title={toMe ? 'sent to you' : undefined}>{toMe ? '›' : ''}</span>to {people(message.to) || '—'}{message.cc.length ? `, cc ${people(message.cc)}` : ''}
     </p>
 
     {#if !body || !body.ready}
@@ -187,6 +196,20 @@
   .date {
     flex: none;
     font-size: var(--fs-small);
+  }
+
+  .right {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* same column as in the list, so text lines up with or without the mark */
+  .to-me {
+    display: inline-block;
+    width: 1.5ch;
+    color: var(--muted);
   }
 
   .top {
