@@ -103,10 +103,14 @@
     {#if !body || !body.ready}
       <p class="muted body">loading…</p>
     {:else if html && body.html}
+      <!-- allow-scripts is what lets WebKit run our click listener inside the
+           frame (without it links do nothing); the email itself still cannot run
+           code: scripts and handlers are stripped when stored and the document's
+           CSP is default-src 'none'. -->
       <iframe
         bind:this={frame}
         title="original html"
-        sandbox="allow-same-origin"
+        sandbox="allow-same-origin allow-scripts"
         srcdoc={body.html}
         style:height="{frameHeight}px"
         onload={hookFrame}

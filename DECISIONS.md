@@ -23,7 +23,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - An IMAP account is saved only after a real login: a wrong password reaches neither the config nor the keyring.
 - Links open in the system browser only if `http`, `https` or `mailto`.
 - Original HTML: ammonia when stored (inline styles and presentational attributes allowed), remote images stripped and CSP `default-src 'none'` when shown.
-- iframe `sandbox="allow-same-origin"` without `allow-scripts`: no script runs, but the frontend intercepts link clicks and hands them to the browser.
+- iframe `sandbox="allow-same-origin allow-scripts"`: WebKit runs a parent-added click listener inside the frame only with `allow-scripts` (without it, links in HTML mode did nothing). The email still runs no code: ammonia strips scripts and handlers when stored and the frame's CSP is `default-src 'none'` (checked in WebKitGTK with an injected `<script>`, `onerror` and `javascript:` link). Every link click is intercepted and only `http`, `https`, `mailto` reach the browser.
 - `:enable images` applies to that message only and for the current session only.
 - Tauri adds no nonce to `style-src` (`dangerousDisableAssetCspModification: ["style-src"]`): with a nonce the browser would ignore `'unsafe-inline'` and block inline styles (virtual list, email HTML). Scripts stay nonce-protected.
 - Gmail's "Application-specific password required" becomes a message with instructions for app passwords.
