@@ -12,7 +12,6 @@ import {
   compose,
   cursorMessage,
   enableImages,
-  fileName,
   flash,
   folderLabel,
   goToRole,
@@ -24,7 +23,6 @@ import {
   openPalette,
   openThread,
   remove,
-  removeAttachment,
   saveAttachment,
   selectAccount,
   selectFolder,
@@ -255,24 +253,6 @@ export const commands: Command[] = [
   // ------------------------------------------------------------------ compose
   { id: 'send', label: 'invia', shortcut: '⌃⏎', keys: ['ctrl+enter'], scope: 'compose', run: send },
   { id: 'attach', label: 'allega', shortcut: '⌃a', keys: ['ctrl+a'], scope: 'compose', run: attach },
-  {
-    id: 'remove-attachment',
-    label: 'rimuovi allegato…',
-    alias: 'togli elimina allegato',
-    shortcut: '⌃d',
-    keys: ['ctrl+d'],
-    scope: 'compose',
-    when: () => !!app.draft?.attachments.length,
-    run: () =>
-      openPalette(
-        (app.draft?.attachments ?? []).map((path, i) => ({
-          label: fileName(path),
-          hint: path,
-          run: () => removeAttachment(i),
-        })),
-        'rimuovi allegato',
-      ),
-  },
   {
     id: 'bcc',
     label: 'ccn',

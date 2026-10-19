@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import StatusLine from './StatusLine.svelte';
   import { api } from './lib/api';
   import { runCommand } from './lib/commands';
@@ -21,7 +22,9 @@
     return `risposta a ${to || '…'}`;
   });
 
-  $effect(() => {
+  onMount(() => {
+    // the caret starts above the signature, whenever the body gets focus
+    bodyEl?.setSelectionRange(0, 0);
     if (d.kind === 'new' || d.kind === 'forward' || !d.to) first?.focus();
     else bodyEl?.focus();
   });
@@ -139,10 +142,9 @@
         <button class="hint" onclick={() => runCommand('attach')}>nessuno · <b>⌃a</b> per aggiungere</button>
       {:else}
         {#each d.attachments as path, i (path + i)}
-          <span class="file" title={path}>
+          <button class="file" onclick={() => removeAttachment(i)} title="clic per rimuovere">
             {fileName(path)}
-            <button class="remove" onclick={() => removeAttachment(i)} title="rimuovi {fileName(path)}">×</button>
-          </span>
+          </button>
         {/each}
         <button class="hint" onclick={() => runCommand('attach')}><b>⌃a</b> aggiungi</button>
       {/if}
@@ -246,20 +248,8 @@
     border-top: var(--line);
   }
 
-  .file {
-    display: inline-flex;
-    gap: 6px;
-  }
-
-  .remove {
-    color: var(--muted);
-  }
-
-  .remove:hover {
+  .file:hover {
     color: var(--red);
-  }
-
-  .file:has(.remove:hover) {
     text-decoration: line-through;
   }
 </style>

@@ -82,6 +82,10 @@ theme = "auto"            # auto | omarchy | dark | light
 font = "JetBrains Mono"   # qualsiasi font monospace installato
 font_size = 13            # px dell'interfaccia; il corpo dei messaggi è +1
 sync_months = 48          # mesi di posta da tenere in sync (per data di arrivo); 0 = tutta
+signature = """
+Simone Silvetti
++39 333 1234567
+"""                       # firma per tutti gli account (facoltativa)
 
 [[accounts]]
 name = "Lavoro"           # nome mostrato e usato come mittente
@@ -95,6 +99,7 @@ username = "nome@dominio.it"   # facoltativo: di default è l'email
 # imap_tls = "starttls"   # solo per porte non standard: "implicit" o "starttls"
 # smtp_tls = "implicit"
 # sync_months = 12        # facoltativo: sostituisce quello generale per questo account
+# signature = "Ufficio"   # facoltativo: firma solo per questo account ("" = nessuna)
 # la password sta nel keyring di sistema, mai nel file
 
 [[accounts]]
@@ -105,6 +110,8 @@ client_id = "1234567890-abc.apps.googleusercontent.com"
 client_secret = "GOCSPX-…"
 # host e porte di Gmail sono già noti; il refresh token sta nel keyring
 ```
+
+La firma viene messa in fondo a ogni messaggio nuovo, risposta e inoltro, dopo la riga `-- ` (il separatore standard che molti client riconoscono); il cursore parte sopra la firma, che resta modificabile o cancellabile nel singolo messaggio. Le stringhe su più righe vanno tra `"""`.
 
 `sync_months` limita la sync ai messaggi arrivati negli ultimi N mesi, in tutte le cartelle: quelli più vecchi non vengono scaricati (nemmeno gli header) e restano solo sul server. Con il passare dei mesi la finestra avanza e i messaggi che ne escono spariscono dal database locale, non dal server. Se cambi il valore, l'account si risincronizza subito: allargando la finestra arrivano anche i messaggi più vecchi.
 
@@ -170,7 +177,7 @@ Note:
 | `⌃1` … `⌃9` | cambia account |
 | `R` | sincronizza ora |
 
-In composizione: `⌃⏎` invia · `⌃a` allega · `⌃d` rimuove un allegato (oppure clic sulla `×` accanto al nome) · `⌃b` mostra il campo ccn · `⌃q` mostra la citazione · `esc` chiude (con modifiche non salvate chiede un secondo `esc` e scarta la bozza). Le bozze si salvano da sole ogni 5 secondi e si riprendono ripremendo `c` (o `r`/`a`/`f` sullo stesso messaggio).
+In composizione: `⌃⏎` invia · `⌃a` allega (clic sul nome di un allegato per toglierlo) · `⌃b` mostra il campo ccn · `⌃q` mostra la citazione · `esc` chiude (con modifiche non salvate chiede un secondo `esc` e scarta la bozza). Le bozze si salvano da sole ogni 5 secondi e si riprendono ripremendo `c` (o `r`/`a`/`f` sullo stesso messaggio).
 
 Nessuna scorciatoia scatta mentre scrivi in un campo, tranne `esc` e le combinazioni con `⌃`. Tutti i comandi, anche quelli senza tasto (`sposta in…`, `vai a cartella…`, `cambia account…`, `apri config`, `abilita immagini`, `info`…), sono nella palette.
 

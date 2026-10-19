@@ -29,7 +29,6 @@
     if (app.screen === 'compose') {
       if (app.confirmDiscard) return [hint('cancel', 'di nuovo per scartare')];
       const list = [hint('send'), hint('attach')];
-      if (app.draft?.attachments.length) list.push(hint('remove-attachment', 'rimuovi allegato'));
       list.push(hint('bcc'));
       if (app.draft?.quote) list.push(hint('quote', app.draftQuote ? 'nascondi citazione' : 'mostra citazione'));
       list.push(hint('cancel'));

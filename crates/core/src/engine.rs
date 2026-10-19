@@ -802,6 +802,7 @@ impl Engine {
             imap_tls: clean(&n.imap_tls),
             smtp_tls: clean(&n.smtp_tls),
             sync_months: None,
+            signature: None,
         };
         acc.validate()?;
         Ok(acc)
@@ -1148,10 +1149,20 @@ impl Engine {
         if let Some(d) = self.inner.db.find_draft(account, kind, source)? {
             return Ok(d);
         }
+        let body = {
+            let cfg = self.inner.config.read().unwrap_or_else(|p| p.into_inner());
+            let sig = cfg
+                .accounts
+                .iter()
+                .find(|a| a.email == account)
+                .and_then(|a| cfg.signature(a));
+            config::signed_body(sig.as_deref())
+        };
         let Some(src_id) = source.filter(|_| kind != DraftKind::New) else {
             return Ok(Draft {
                 account: account.to_string(),
                 kind: DraftKind::New,
+                body,
                 ..Default::default()
             });
         };
@@ -1173,7 +1184,7 @@ impl Engine {
             cc: join(&t.cc),
             bcc: String::new(),
             subject: t.subject,
-            body: String::new(),
+            body,
             quote: t.quote,
             attachments: Vec::new(),
             saved_at: None,

@@ -18,6 +18,9 @@ pub struct Config {
     /// How many months of mail to keep in sync (by arrival date); 0 = everything.
     #[serde(default = "default_sync_months")]
     pub sync_months: u32,
+    /// Appended to new messages, replies and forwards (after a "-- " line).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
     #[serde(default)]
     pub accounts: Vec<AccountConfig>,
 }
@@ -29,6 +32,7 @@ impl Default for Config {
             font: default_font(),
             font_size: default_font_size(),
             sync_months: default_sync_months(),
+            signature: None,
             accounts: Vec::new(),
         }
     }
@@ -82,6 +86,9 @@ pub struct AccountConfig {
     /// Overrides the global `sync_months` for this account.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sync_months: Option<u32>,
+    /// Overrides the global `signature`; an empty string means none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 /// Where and how to reach a server. TLS mode follows the port (993/465 are
@@ -108,6 +115,25 @@ impl Config {
     /// Sync window for an account in months, `None` meaning no limit.
     pub fn sync_months(&self, account: &AccountConfig) -> Option<u32> {
         Some(account.sync_months.unwrap_or(self.sync_months)).filter(|m| *m > 0)
+    }
+
+    /// Signature for an account, already trimmed; `None` if there is none.
+    pub fn signature(&self, account: &AccountConfig) -> Option<String> {
+        account
+            .signature
+            .as_ref()
+            .or(self.signature.as_ref())
+            .map(|s| s.trim_matches(['\n', '\r']).trim_end().to_string())
+            .filter(|s| !s.trim().is_empty())
+    }
+}
+
+/// Initial body of a draft: room to write, then the signature after the
+/// conventional "-- " separator.
+pub fn signed_body(signature: Option<&str>) -> String {
+    match signature {
+        Some(sig) => format!("\n\n-- \n{sig}"),
+        None => String::new(),
     }
 }
 
@@ -257,6 +283,10 @@ theme = "auto"        # auto | omarchy | dark | light
 font = "JetBrains Mono"
 font_size = 13
 sync_months = 48      # mesi di posta da sincronizzare (0 = tutta); per account: sync_months = N
+# firma in fondo ai messaggi (anche per account; signature = "" per nessuna):
+# signature = """
+# Simone
+# """
 "#;
 
 /// Content of a fresh config file.
@@ -305,6 +335,9 @@ fn account_block(a: &AccountConfig) -> String {
     }
     if let Some(v) = a.sync_months {
         out += &format!("sync_months = {v}\n");
+    }
+    if let Some(v) = &a.signature {
+        out += &format!("signature = {}\n", toml_str(v));
     }
     if !a.is_google() {
         out += "# la password sta nel keyring di sistema, mai nel file\n";
@@ -443,6 +476,7 @@ client_secret = "secret"
             imap_tls: Some("implicit".into()),
             smtp_tls: None,
             sync_months: Some(6),
+            signature: Some("Casa\n\"tel\" 123".into()),
         };
         let text = append_account(SAMPLE, &acc);
         let c = parse(&text).unwrap();
@@ -473,6 +507,7 @@ client_secret = "secret"
             imap_tls: None,
             smtp_tls: None,
             sync_months: None,
+            signature: None,
         };
         let text = append_account("", &acc);
         let c = parse(&text).unwrap();
@@ -486,6 +521,19 @@ client_secret = "secret"
         let c = parse("[[accounts]]\nname = \"g\"\ntype = \"imap\"\nemail = \"a@gmail.com\"\nimap_host = \"IMAP.gmail.com\"\nsmtp_host = \"smtp.gmail.com\"\n[[accounts]]\nname = \"o\"\ntype = \"imap\"\nemail = \"a@b.it\"\nimap_host = \"imap.b.it\"\nsmtp_host = \"smtp.b.it\"\n").unwrap();
         assert!(c.accounts[0].gmail_semantics() && !c.accounts[0].is_google());
         assert!(!c.accounts[1].gmail_semantics());
+    }
+
+    #[test]
+    fn signatures() {
+        let c = parse("signature = \"\"\"\nSimone\n+39 333\n\"\"\"\n[[accounts]]\nname = \"a\"\ntype = \"google\"\nemail = \"a@b.it\"\n[[accounts]]\nname = \"b\"\ntype = \"google\"\nemail = \"b@b.it\"\nsignature = \"Ufficio\"\n[[accounts]]\nname = \"c\"\ntype = \"google\"\nemail = \"c@b.it\"\nsignature = \"\"\n").unwrap();
+        assert_eq!(
+            c.signature(&c.accounts[0]).as_deref(),
+            Some("Simone\n+39 333")
+        );
+        assert_eq!(c.signature(&c.accounts[1]).as_deref(), Some("Ufficio"));
+        assert_eq!(c.signature(&c.accounts[2]), None);
+        assert_eq!(signed_body(Some("Ufficio")), "\n\n-- \nUfficio");
+        assert_eq!(signed_body(None), "");
     }
 
     #[test]
