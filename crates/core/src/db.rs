@@ -127,9 +127,10 @@ pub fn day_boundaries(now: chrono::DateTime<chrono::Local>) -> (i64, i64, i64) {
 impl Db {
     pub fn open(path: &Path) -> Result<Db> {
         if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
+            crate::config::private_dir(dir)?;
         }
         let conn = Connection::open(path)?;
+        crate::config::restrict(path, 0o600)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         Self::init(conn)
     }

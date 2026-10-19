@@ -2,7 +2,6 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use lettera_core::config::Paths;
@@ -147,29 +146,23 @@ fn list_attachments(engine: State<Engine>, message_id: i64) -> Res<Vec<Attachmen
     engine.list_attachments(message_id).map_err(err)
 }
 
-/// Saves an attachment; without `path` asks where with the system dialog.
+/// Saves an attachment where the user chooses in the system dialog. The
+/// webview never names a path itself, so it cannot write files on its own.
 /// Returns the chosen path, or `None` if the user cancelled.
 #[tauri::command(rename_all = "snake_case")]
 async fn save_attachment(
     app: AppHandle,
     engine: State<'_, Engine>,
     attachment_id: i64,
-    path: Option<String>,
 ) -> Res<Option<String>> {
-    let path = match path {
-        Some(p) => PathBuf::from(p),
-        None => {
-            let name = engine.db().attachment(attachment_id).map_err(err)?.filename;
-            let picked = tauri::async_runtime::spawn_blocking(move || {
-                app.dialog().file().set_file_name(name).blocking_save_file()
-            })
-            .await
-            .map_err(err)?;
-            match picked.and_then(|p| p.into_path().ok()) {
-                Some(p) => p,
-                None => return Ok(None),
-            }
-        }
+    let name = engine.db().attachment(attachment_id).map_err(err)?.filename;
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog().file().set_file_name(name).blocking_save_file()
+    })
+    .await
+    .map_err(err)?;
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else {
+        return Ok(None);
     };
     engine
         .save_attachment(attachment_id, &path)
@@ -243,16 +236,24 @@ async fn open_config(app: AppHandle, engine: State<'_, Engine>) -> Res<String> {
     Ok(path.display().to_string())
 }
 
+/// Only web and mail links leave the app: never `file:`, `javascript:`,
+/// custom schemes or anything a browser would run or open locally.
+fn openable(url: &str) -> bool {
+    let url = url.trim_start().to_lowercase();
+    ["http://", "https://", "mailto:"]
+        .iter()
+        .any(|s| url.starts_with(s))
+        && !url.chars().any(char::is_control)
+}
+
 #[tauri::command(rename_all = "snake_case")]
 fn open_url(app: AppHandle, url: String) -> Res<()> {
-    let lower = url.to_lowercase();
-    if !(lower.starts_with("http://")
-        || lower.starts_with("https://")
-        || lower.starts_with("mailto:"))
-    {
+    if !openable(&url) {
         return Err(format!("unsupported link: {url}"));
     }
-    app.opener().open_url(url, None::<&str>).map_err(err)
+    app.opener()
+        .open_url(url.trim_start(), None::<&str>)
+        .map_err(err)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -343,4 +344,35 @@ fn main() -> anyhow::Result<()> {
         ])
         .run(tauri::generate_context!())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::openable;
+
+    #[test]
+    fn only_web_and_mail_links_open() {
+        for ok in [
+            "https://example.com/a?b=1",
+            "HTTP://example.com",
+            "mailto:a@b.it",
+            " https://x.it",
+        ] {
+            assert!(openable(ok), "{ok}");
+        }
+        for bad in [
+            "javascript:alert(1)",
+            "file:///etc/passwd",
+            "data:text/html,x",
+            "vbscript:x",
+            "ftp://x",
+            "smb://host/share",
+            "#anchor",
+            "/relative",
+            "https://x.it/\nfile:///etc",
+            "https://x.it/\u{0}",
+        ] {
+            assert!(!openable(bad), "{bad}");
+        }
+    }
 }

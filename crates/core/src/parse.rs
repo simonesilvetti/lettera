@@ -73,12 +73,13 @@ fn id_list(v: &HeaderValue) -> Vec<String> {
         .collect()
 }
 
+/// A Message-ID without `<>`, whitespace or control characters: it ends up
+/// in our own outgoing `In-Reply-To`/`References`, so nothing in it may be
+/// able to start a new header line.
 pub fn clean_id(s: &str) -> String {
-    s.trim()
-        .trim_start_matches('<')
-        .trim_end_matches('>')
-        .trim()
-        .to_string()
+    s.chars()
+        .filter(|c| !c.is_whitespace() && !c.is_control() && *c != '<' && *c != '>')
+        .collect()
 }
 
 /// Small stable hash (FNV-1a) used to synthesize ids for messages without Message-ID.

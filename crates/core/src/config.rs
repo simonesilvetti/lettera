@@ -448,11 +448,31 @@ pub fn remove_account(text: &str, email: &str) -> String {
 
 pub fn write(path: &Path, text: &str) -> Result<()> {
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
+        private_dir(dir)?;
     }
     let tmp = path.with_extension("toml.tmp");
     std::fs::write(&tmp, text)?;
+    restrict(&tmp, 0o600)?;
     std::fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+/// Creates `dir` if needed and makes it private to the user (0700 on Unix):
+/// the config may hold an OAuth client secret, the data dir holds the mail.
+pub fn private_dir(dir: &Path) -> Result<()> {
+    std::fs::create_dir_all(dir)?;
+    restrict(dir, 0o700)
+}
+
+/// Unix permissions for an existing file or directory; a no-op elsewhere.
+pub fn restrict(path: &Path, mode: u32) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))?;
+    }
+    #[cfg(not(unix))]
+    let _ = (path, mode);
     Ok(())
 }
 
@@ -603,6 +623,19 @@ client_secret = "secret"
             remove_account(&added, "w@example.com").trim_end(),
             fresh.trim_end()
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_and_dir_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("lettera-perm-{}", std::process::id()));
+        let file = dir.join("sub").join("config.toml");
+        write(&file, "theme = \"auto\"\n").unwrap();
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&file), 0o600);
+        assert_eq!(mode(file.parent().unwrap()), 0o700);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

@@ -27,6 +27,11 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - `:enable images` applies to that message only and for the current session only.
 - Tauri adds no nonce to `style-src` (`dangerousDisableAssetCspModification: ["style-src"]`): with a nonce the browser would ignore `'unsafe-inline'` and block inline styles (virtual list, email HTML). Scripts stay nonce-protected.
 - Gmail's "Application-specific password required" becomes a message with instructions for app passwords.
+- `save_attachment` takes no path from the webview: the destination always comes from the system dialog, so the UI cannot write files by itself.
+- The config directory and data directory are 0700, `config.toml` and the database 0600 (they hold an OAuth client secret and the mail); existing files are tightened at startup.
+- Message-IDs lose whitespace, control characters and `<>` both when parsed and when written into `In-Reply-To`/`References`, so a crafted id cannot inject a header into a reply.
+- Inline `style` attributes containing `javascript:`, `vbscript:`, `expression(`, `behavior:` or `-moz-binding` are dropped.
+- Known, accepted: files listed in a draft's attachments are read from whatever paths the UI sends (they come from the file picker or a saved draft); a compromised webview could attach any readable file. The webview only runs the app's own bundled scripts (`script-src 'self'`).
 
 ## Sync
 

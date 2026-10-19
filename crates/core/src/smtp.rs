@@ -220,7 +220,7 @@ pub fn build(o: &Outgoing) -> Result<Vec<u8>> {
     let mut b = MessageBuilder::new()
         .from(baddr(&o.from))
         .subject(o.subject.clone())
-        .message_id(o.message_id.clone())
+        .message_id(crate::parse::clean_id(&o.message_id))
         .date(chrono::Utc::now().timestamp())
         .text_body(o.body.clone());
     if !o.to.is_empty() {
@@ -229,11 +229,19 @@ pub fn build(o: &Outgoing) -> Result<Vec<u8>> {
     if !o.cc.is_empty() {
         b = b.cc(blist(&o.cc));
     }
-    if let Some(irt) = &o.in_reply_to {
-        b = b.in_reply_to(irt.clone());
+    // ids come from received mail: cleaned again here, whatever stored them
+    let ids = |v: &[String]| -> Vec<String> {
+        v.iter()
+            .map(|s| crate::parse::clean_id(s))
+            .filter(|s| !s.is_empty())
+            .collect()
+    };
+    if let Some(irt) = ids(o.in_reply_to.as_slice()).pop() {
+        b = b.in_reply_to(irt);
     }
-    if !o.references.is_empty() {
-        b = b.references(o.references.clone());
+    let refs = ids(&o.references);
+    if !refs.is_empty() {
+        b = b.references(refs);
     }
     for (name, mime, bytes) in &o.attachments {
         b = b.attachment(mime.clone(), name.clone(), bytes.clone());
@@ -449,5 +457,46 @@ mod tests {
         assert!(raw.contains("Message-ID: <new@y.it>"));
         assert!(!raw.contains("secret@z.it"));
         assert!(raw.contains("text/plain"));
+    }
+
+    #[test]
+    fn header_injection_is_neutralised() {
+        let a = |n: &str, e: &str| Addr {
+            name: n.into(),
+            addr: e.into(),
+        };
+        let o = Outgoing {
+            from: a("Me\r\nBcc: spy@evil.example", "me@x.it"),
+            to: vec![a("Anna", "anna@x.it")],
+            cc: vec![],
+            bcc: vec![a("", "hidden@x.it")],
+            subject: "hi\r\nBcc: spy@evil.example\r\nX-Evil: 1".into(),
+            body: "body\r\n.\r\nMAIL FROM:<x@y>".into(),
+            message_id: "id@x.it".into(),
+            in_reply_to: Some("a@x.it>\r\nX-Evil: 2".into()),
+            references: vec![],
+            attachments: vec![(
+                "a\r\nX-Evil: 3.txt".into(),
+                "text/plain".into(),
+                b"x".to_vec(),
+            )],
+        };
+        let raw = String::from_utf8(build(&o).unwrap()).unwrap();
+        let headers: Vec<&str> = raw.split("\r\n\r\n").next().unwrap().lines().collect();
+        for h in &headers {
+            let name = h.split(':').next().unwrap_or("").to_ascii_lowercase();
+            assert!(
+                name != "bcc" && name != "x-evil",
+                "injected header {h:?}\n{raw}"
+            );
+        }
+        assert!(
+            !raw.to_ascii_lowercase().contains("hidden@x.it"),
+            "Bcc never in headers"
+        );
+        let parsed = mail_parser::MessageParser::default()
+            .parse(raw.as_bytes())
+            .unwrap();
+        assert!(parsed.header("X-Evil").is_none() && parsed.bcc().is_none());
     }
 }

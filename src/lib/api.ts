@@ -41,8 +41,7 @@ export const api = {
   send: (draft: Draft) => invoke<void>('send', { draft }),
   listAttachments: (message_id: number) =>
     invoke<AttachmentInfo[]>('list_attachments', { message_id }),
-  saveAttachment: (attachment_id: number, path: string | null = null) =>
-    invoke<string | null>('save_attachment', { attachment_id, path }),
+  saveAttachment: (attachment_id: number) => invoke<string | null>('save_attachment', { attachment_id }),
   pickFiles: () => invoke<string[]>('pick_files'),
   syncNow: (account: string | null) => invoke<void>('sync_now', { account }),
   getTheme: () => invoke<ThemePayload>('get_theme'),

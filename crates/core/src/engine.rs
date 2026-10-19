@@ -664,7 +664,10 @@ impl Inner {
             }
         };
         if let Some(dir) = self.paths.config_file.parent() {
-            let _ = std::fs::create_dir_all(dir);
+            let _ = config::private_dir(dir);
+            if self.paths.config_file.exists() {
+                let _ = config::restrict(&self.paths.config_file, 0o600);
+            }
             if let Err(e) = watcher.watch(dir, RecursiveMode::NonRecursive) {
                 tracing::warn!("watch {}: {e}", dir.display());
             }
