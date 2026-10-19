@@ -3,6 +3,7 @@
   import { app, flash, loadAccounts, selectAccount } from './lib/state.svelte';
   import type { NewAccount } from './lib/types';
   import wordmark from '../assets/wordmark.svg?raw';
+  import Logo from './Logo.svelte';
 
   let kind = $state<'imap' | 'google'>('imap');
   let name = $state('');
@@ -107,7 +108,7 @@
 
 <div class="setup">
   <form onsubmit={submit}>
-    <span class="wordmark">{@html wordmark}</span>
+    <span class="wordmark"><Logo size={30} />{@html wordmark}</span>
     <p class="muted intro">add an account</p>
 
     <div class="rows">
@@ -193,11 +194,17 @@
     max-width: calc(100% - 32px);
   }
 
-  .wordmark :global(svg) {
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--fg);
+  }
+
+  .wordmark > :global(svg:last-child) {
     height: 28px;
     width: auto;
     display: block;
-    color: var(--fg);
   }
 
   .intro {

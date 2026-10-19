@@ -107,6 +107,6 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 
 - Flatpak on GNOME 51 with a build that downloads dependencies (`--share=network`): a local package, not ready for Flathub; data in the sandbox, not shared with a native install.
 - `deb` and `rpm` bundles on Linux, `app` and `dmg` on macOS; no AppImage (it downloads tools during the build).
-- Icon hand-drawn in SVG and converted with `cargo tauri icon`; set reduced to desktop icons. Since 2026-10-19 the typewriter types an envelope (flap cut out as a V) instead of a sheet, so it reads as an email client; chosen by the user among three drafts.
+- Icon hand-drawn in SVG and converted with `cargo tauri icon`; set reduced to desktop icons. Since 2026-10-19 the typewriter types an envelope (flap cut out as a V) instead of a sheet, so it reads as an email client; chosen by the user among three drafts. Its colors are the user's Omarchy theme at the time (background `#05182e`, typewriter `#f6dcac`, envelope `#faa968`), so the static icon matches the in-app logo (`src/Logo.svelte`, drawn with theme tokens and shown in the top bar and on the setup screen).
 - Wordmark: Special Elite (Apache 2.0) converted to paths with fontTools, color `currentColor`.
 - Integration tests: Dovecot and Mailpit in Docker with a test CA in the repository (the CA's private key was discarded).
