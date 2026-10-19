@@ -25,12 +25,6 @@ impl EventSink for Recorder {
     }
 }
 
-impl Recorder {
-    fn has(&self, name: &str) -> bool {
-        self.0.lock().unwrap().iter().any(|(n, _)| n == name)
-    }
-}
-
 async fn wait_for<T>(what: &str, mut f: impl FnMut() -> Option<T>) -> T {
     let start = Instant::now();
     loop {
