@@ -1,0 +1,61 @@
+# Flatpak di lettera. Costruito con: just flatpak
+# La build scarica crate e pacchetti npm (--share=network): va bene per un
+# pacchetto locale, Flathub richiederebbe sorgenti vendorizzate.
+id: app.lettera.desktop
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node24
+command: lettera
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # password e token nel portachiavi (Secret Service), notifiche
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.freedesktop.Notifications
+  # tema Omarchy, letto e osservato in sola lettura
+  - --filesystem=~/.config/omarchy:ro
+  - --filesystem=~/.local/state/omarchy:ro
+  # allegati: salvataggio e scelta file
+  - --filesystem=xdg-download
+  - --filesystem=xdg-documents
+  - --filesystem=xdg-pictures
+  - --filesystem=xdg-desktop
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node24/bin
+  build-args:
+    - --share=network
+  env:
+    CARGO_HOME: /run/build/lettera/cargo
+    CARGO_TARGET_DIR: /run/build/lettera/target
+    npm_config_cache: /run/build/lettera/npm-cache
+modules:
+  - name: lettera
+    buildsystem: simple
+    build-commands:
+      - npm ci --no-audit --no-fund
+      - npm run build
+      - cargo build --release --locked -p lettera --features tauri/custom-protocol
+      - install -Dm755 target/release/lettera /app/bin/lettera
+      - install -Dm644 flatpak/app.lettera.desktop.desktop /app/share/applications/app.lettera.desktop.desktop
+      - install -Dm644 flatpak/app.lettera.desktop.metainfo.xml /app/share/metainfo/app.lettera.desktop.metainfo.xml
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/app.lettera.desktop.png
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/app.lettera.desktop.png
+      - install -Dm644 src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/app.lettera.desktop.png
+      - install -Dm644 assets/icon.svg /app/share/icons/hicolor/scalable/apps/app.lettera.desktop.svg
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - target
+          - node_modules
+          - dist
+          - .flatpak-builder
+          - flatpak/build
+          - flatpak/repo
+          - lettera.flatpak

@@ -29,3 +29,8 @@ lint:
 
 fmt:
     cargo fmt --all
+
+# pacchetto flatpak (lettera.flatpak); installalo con: flatpak install --user lettera.flatpak
+flatpak:
+    flatpak run org.flatpak.Builder --user --force-clean --install-deps-from=flathub --repo=flatpak/repo flatpak/build flatpak/app.lettera.desktop.yml
+    flatpak build-bundle flatpak/repo lettera.flatpak app.lettera.desktop --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo

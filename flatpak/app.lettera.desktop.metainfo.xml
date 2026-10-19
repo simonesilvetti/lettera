@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.lettera.desktop</id>
+  <name>lettera</name>
+  <summary>Client email minimale, fatto di testo</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="app.lettera">
+    <name>Simone Silvetti</name>
+  </developer>
+  <description>
+    <p>Un client email desktop essenziale per account IMAP e Google: lettura in testo,
+    ricerca, archiviazione, risposte e scorciatoie da tastiera. Segue il tema di Omarchy.</p>
+  </description>
+  <launchable type="desktop-id">app.lettera.desktop.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-19"/>
+  </releases>
+</component>

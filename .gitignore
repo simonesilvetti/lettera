@@ -4,3 +4,9 @@ node_modules/
 src-tauri/gen/
 *.tmp
 .DS_Store
+
+# flatpak
+flatpak/build/
+flatpak/repo/
+.flatpak-builder/
+lettera.flatpak
