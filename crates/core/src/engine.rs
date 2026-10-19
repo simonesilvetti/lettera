@@ -89,6 +89,20 @@ enum Action {
 }
 
 /// Work for the background connection.
+impl Action {
+    fn name(&self) -> &'static str {
+        match self {
+            Action::Bodies(_) => "bodies",
+            Action::Flags { .. } => "flags",
+            Action::Move { .. } => "move",
+            Action::Expunge { .. } => "expunge",
+            Action::Append { .. } => "append",
+            Action::Draft { .. } => "draft",
+            Action::Raw { .. } => "raw",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 struct SyncJob {
     /// Empty (with no `inbox` and no `bodies`) = every folder and the folder list.
@@ -705,14 +719,17 @@ impl Inner {
             while let Ok(a) = rx.try_recv() {
                 queue.push_back(a);
             }
-            // someone is waiting for a body: it goes before flags and moves
+            // someone is waiting for a body or an attachment: it goes before
+            // flags and moves
             let next = queue
                 .iter()
-                .position(|a| matches!(a, Action::Bodies(_)))
+                .position(|a| matches!(a, Action::Bodies(_) | Action::Raw { .. }))
                 .unwrap_or(0);
             let Some(action) = queue.remove(next) else {
                 continue;
             };
+            let name = action.name();
+            let started = Instant::now();
             let mut slot = Some(action);
             check_alive(&mut conn, used).await;
             let mut res = guarded(self.run_action(&email, &mut conn, &mut slot)).await;
@@ -721,6 +738,11 @@ impl Inner {
                 conn = None;
                 res = guarded(self.run_action(&email, &mut conn, &mut slot)).await;
             }
+            tracing::debug!(
+                "action {name} {email}: {:?}, {} more queued",
+                started.elapsed(),
+                queue.len()
+            );
             if let Some(a) = &slot {
                 self.release(a);
             }
@@ -1487,6 +1509,10 @@ impl Engine {
             .unwrap_or_default();
         let t = smtp::template(kind, &src, &text, account);
         let join = |v: &[Addr]| v.iter().map(Addr::full).collect::<Vec<_>>().join(", ");
+        let (in_reply_to, references) = match kind {
+            DraftKind::Reply | DraftKind::ReplyAll => smtp::thread_headers(&src),
+            _ => (None, Vec::new()),
+        };
         Ok(Draft {
             id: None,
             account: account.to_string(),
@@ -1501,6 +1527,8 @@ impl Engine {
             attachments: Vec::new(),
             saved_at: None,
             message_id: None,
+            in_reply_to,
+            references,
         })
     }
 
@@ -1622,6 +1650,8 @@ impl Engine {
             quote: String::new(),
             attachments,
             saved_at: None,
+            in_reply_to: m.in_reply_to.clone(),
+            references: m.refs.clone(),
             message_id: Some(m.message_id),
         })
     }
@@ -1711,13 +1741,20 @@ impl Engine {
         d: &Draft,
         message_id: String,
     ) -> Result<Outgoing> {
-        let src = match d.source {
-            Some(id) if d.kind != DraftKind::New => Some(self.inner.db.message(id)?),
-            _ => None,
-        };
-        let (in_reply_to, references) = match (&src, d.kind) {
-            (Some(s), DraftKind::Reply | DraftKind::ReplyAll) => smtp::thread_headers(s),
-            _ => (None, Vec::new()),
+        // drafts from before the headers were kept still look at the source,
+        // and do without threading if it has left the database since
+        let (in_reply_to, references) = if d.in_reply_to.is_some() {
+            (d.in_reply_to.clone(), d.references.clone())
+        } else {
+            match (d.source, d.kind) {
+                (Some(id), DraftKind::Reply | DraftKind::ReplyAll) => self
+                    .inner
+                    .db
+                    .message(id)
+                    .map(|s| smtp::thread_headers(&s))
+                    .unwrap_or_default(),
+                _ => (None, Vec::new()),
+            }
         };
         let mut body = d.body.trim_end().to_string();
         if !d.quote.trim().is_empty() {

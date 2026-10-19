@@ -407,7 +407,23 @@ async function removeAndAdvance(fn: (ids: number[]) => Promise<void>, done: stri
 }
 
 export const archive = () => removeAndAdvance(api.archive, 'archived');
-export const remove = () => removeAndAdvance(api.delete, 'deleted');
+/** `#`: the selected thread, or only the draft under the cursor when a reply
+ *  saved in Drafts shows inside a thread of another folder (deleting the
+ *  whole thread there would throw away the mail being answered). */
+export async function remove() {
+  const m = cursorMessage();
+  if (app.focus === 'thread' && m && isDraftMessage(m) && currentFolder()?.role !== 'drafts') {
+    try {
+      await api.delete([m.id]);
+      flash('draft deleted');
+      await reloadThread();
+    } catch (e) {
+      fail(e);
+    }
+    return;
+  }
+  await removeAndAdvance(api.delete, 'deleted');
+}
 
 export async function moveTo(folder: FolderInfo) {
   await removeAndAdvance((ids) => api.moveTo(ids, folder.id), `moved to ${folderLabel(folder)}`);
@@ -706,10 +722,10 @@ export async function start() {
       void loadFolders();
       return;
     }
-    if (e.folder === app.folderId) {
-      void refreshList();
-      if (app.thread) void reloadThread();
-    }
+    if (e.folder === app.folderId) void refreshList();
+    // a thread spans folders: a reply saved in Drafts or a copy in Sent
+    // belongs to the open thread even when this folder did not change
+    if (app.thread) void reloadThread();
   });
   await on('body:ready', ({ id }) => {
     if (app.bodies[id] || app.thread?.messages.some((m) => m.id === id)) void loadBody(id);

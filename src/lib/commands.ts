@@ -171,7 +171,8 @@ export const commands: Command[] = [
     shortcut: 'v',
     keys: ['v'],
     scope: 'thread',
-    when: () => !!cursorMessage() && !app.htmlMode[cursorMessage()!.id],
+    // a text-only message has no original html to show
+    when: () => !!cursorMessage() && !app.htmlMode[cursorMessage()!.id] && !!app.bodies[cursorMessage()!.id]?.has_html,
     run: () => toggleHtml(),
   },
   {

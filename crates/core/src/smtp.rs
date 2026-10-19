@@ -90,10 +90,16 @@ pub fn template(kind: DraftKind, src: &MessageRow, src_text: &str, me: &str) -> 
         }
         q
     };
-    let reply_target = if src.reply_to.is_empty() {
-        vec![src.from.clone()]
-    } else {
+    // answering one's own message (from Sent, or a copy to oneself) goes
+    // to its recipients again, as other clients do, not back to oneself
+    let mine = src.from.addr.eq_ignore_ascii_case(me);
+    let others = dedup(src.to.clone(), &[me.to_string()]);
+    let reply_target = if !src.reply_to.is_empty() {
         src.reply_to.clone()
+    } else if mine && !others.is_empty() {
+        others
+    } else {
+        vec![src.from.clone()]
     };
     let me = vec![me.to_string()];
     match kind {
@@ -424,6 +430,22 @@ mod tests {
         assert_eq!(t.subject, "Re: piano");
         assert!(t.quote.contains("> ciao\n>> vecchio"));
         assert!(t.quote.contains("Anna <anna@x.it> wrote:"));
+    }
+
+    #[test]
+    fn reply_to_my_own_message_goes_to_its_recipients() {
+        let mut s = src();
+        s.from = Addr {
+            name: "Me".into(),
+            addr: "me@y.it".into(),
+        };
+        let t = template(DraftKind::Reply, &s, "x", "ME@y.it");
+        let to: Vec<_> = t.to.iter().map(|a| a.addr.as_str()).collect();
+        assert_eq!(to, ["bruno@x.it"]);
+        let t = template(DraftKind::ReplyAll, &s, "x", "ME@y.it");
+        let to: Vec<_> = t.to.iter().map(|a| a.addr.as_str()).collect();
+        assert_eq!(to, ["bruno@x.it"]);
+        assert_eq!(t.cc.len(), 1);
     }
 
     #[test]

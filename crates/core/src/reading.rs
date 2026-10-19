@@ -196,7 +196,7 @@ pub fn html_document(sanitized: &str, allow_images: bool) -> String {
     format!(
         "<!doctype html><html><head><meta charset=\"utf-8\">\
 <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; {img_src} style-src 'unsafe-inline'; font-src data:;\">\
-<style>body{{margin:16px;font-family:sans-serif;font-size:14px;line-height:1.5;background:#fff;color:#111;word-wrap:break-word}}img{{max-width:100%;height:auto}}</style>\
+<style>body{{margin:16px;font-family:sans-serif;font-size:14px;line-height:1.5;background:#fff;color:#111;word-wrap:break-word}}img{{max-width:100%;height:auto}}pre{{white-space:pre-wrap}}</style>\
 </head><body>{body}</body></html>"
     )
 }

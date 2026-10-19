@@ -350,9 +350,53 @@ async fn engine_end_to_end() {
     );
     tokio::time::sleep(Duration::from_millis(500)).await;
 
+    // a reply started before archiving: its source row leaves INBOX, the
+    // draft must still be stored and sent in the thread
+    let pdf_mid = engine.db().message(pdf_thread.ids[0]).unwrap().message_id;
+    let mut early = engine
+        .prepare_draft(&email, DraftKind::Reply, Some(pdf_thread.ids[0]))
+        .unwrap();
+    early.body = "Risposta a un messaggio poi archiviato.".into();
+
     // archive: Archive does not exist yet on this server and gets created
     engine.archive(&pdf_thread.ids).unwrap();
     assert_eq!(engine.list_threads(inbox.id, "", 0, 50).unwrap().total, 1);
+    assert!(engine.db().message(pdf_thread.ids[0]).is_err());
+    let early = engine
+        .store_draft(early)
+        .await
+        .expect("draft of an archived message");
+    engine
+        .send(early)
+        .await
+        .expect("send a reply to an archived message");
+    let start = Instant::now();
+    let mailpit = loop {
+        let list = http_json("http://127.0.0.1:18025/api/v1/messages?limit=50").await;
+        let found = list["messages"].as_array().and_then(|l| {
+            l.iter()
+                .find(|m| {
+                    m["Snippet"]
+                        .as_str()
+                        .is_some_and(|s| s.contains("poi archiviato"))
+                })
+                .cloned()
+        });
+        if let Some(m) = found {
+            break m;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(30),
+            "timeout: reply to the archived message"
+        );
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    };
+    let headers = http_json(&format!(
+        "http://127.0.0.1:18025/api/v1/message/{}/headers",
+        mailpit["ID"].as_str().unwrap()
+    ))
+    .await;
+    assert_eq!(headers["In-Reply-To"][0], format!("<{pdf_mid}>"));
     let archive = wait_for("archive folder", || {
         engine
             .list_folders(&email)

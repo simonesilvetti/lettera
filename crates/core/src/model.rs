@@ -182,6 +182,13 @@ pub struct Draft {
     /// Message-ID of the copy in the server's Drafts folder, if one was stored.
     #[serde(default)]
     pub message_id: Option<String>,
+    /// Threading headers of a reply, fixed when it is started: the message
+    /// answered may leave the database later (archived, moved, deleted), and
+    /// the draft must still be saved and sent in its thread.
+    #[serde(default)]
+    pub in_reply_to: Option<String>,
+    #[serde(default)]
+    pub references: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

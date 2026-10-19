@@ -107,6 +107,8 @@ export interface Draft {
   saved_at: number | null;
   /** Message-ID of the copy in the server's Drafts folder. */
   message_id: string | null;
+  in_reply_to: string | null;
+  references: string[];
 }
 
 export interface NewAccount {
