@@ -290,8 +290,33 @@ pub async fn connect_with(
     })?
 }
 
+/// A connection that dies silently (suspend, network change, NAT timeout)
+/// would otherwise leave a command waiting ~15 minutes for the kernel to give
+/// up: keepalive notices it while idle, the user timeout while a command is
+/// unanswered.
+fn detect_dead_peer(tcp: &TcpStream) {
+    #[cfg(target_os = "linux")]
+    {
+        use std::time::Duration;
+        let sock = socket2::SockRef::from(tcp);
+        let keepalive = socket2::TcpKeepalive::new()
+            .with_time(Duration::from_secs(60))
+            .with_interval(Duration::from_secs(10))
+            .with_retries(3);
+        if let Err(e) = sock.set_tcp_keepalive(&keepalive) {
+            tracing::debug!("keepalive: {e}");
+        }
+        if let Err(e) = sock.set_tcp_user_timeout(Some(Duration::from_secs(30))) {
+            tracing::debug!("tcp user timeout: {e}");
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = tcp;
+}
+
 async fn open(ep: &Endpoint, creds: &Credentials, connector: &TlsConnector) -> Result<RealImap> {
     let tcp = TcpStream::connect((ep.host.as_str(), ep.port)).await?;
+    detect_dead_peer(&tcp);
     let stream = if ep.implicit_tls {
         tls(connector, tcp, &ep.host).await?
     } else {

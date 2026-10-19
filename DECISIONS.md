@@ -49,6 +49,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Queued sync requests are merged into one.
 - Sync errors: retry with growing delay (30 s … 5 min); IDLE reconnects from 2 s to 5 min.
 - Servers without IDLE: NOOP and INBOX sync every 60 s.
+- Dead connections are detected, not waited out: TCP keepalive (60 s, then 3 probes 10 s apart) and a 30 s TCP user timeout on every IMAP socket, and a NOOP (5 s limit) before reusing a sync or action connection idle for over a minute.
 - A role (sent, trash, …) goes to one folder only; SPECIAL-USE wins over names.
 - Generic IMAP archive: the folder with the `archive` role, otherwise `Archive` created on first use.
 - Delete: moves to trash (`Trash` created if missing); deleting from trash is permanent.

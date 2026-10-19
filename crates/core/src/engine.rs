@@ -5,7 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::runtime::Handle;
 use tokio::sync::{mpsc, oneshot};
@@ -31,6 +31,8 @@ use crate::theme::{self, ThemePayload};
 const SYNC_INTERVAL: Duration = Duration::from_secs(5 * 60);
 const PREFETCH_DAYS: i64 = 30;
 const PREFETCH_LIMIT: i64 = 150;
+/// A connection unused for this long is pinged before it is trusted again.
+const IDLE_CHECK: Duration = Duration::from_secs(60);
 
 pub type Opener = Arc<dyn Fn(String) + Send + Sync>;
 
@@ -120,6 +122,22 @@ struct Inner {
 #[derive(Clone)]
 pub struct Engine {
     inner: Arc<Inner>,
+}
+
+/// Drops a connection that sat unused and no longer answers, so the next
+/// command opens a fresh one instead of hanging on a dead socket.
+async fn check_alive(conn: &mut Option<RealImap>, used: Instant) {
+    let Some(c) = conn.as_mut() else { return };
+    if used.elapsed() < IDLE_CHECK {
+        return;
+    }
+    if !matches!(
+        tokio::time::timeout(Duration::from_secs(5), c.noop()).await,
+        Ok(Ok(()))
+    ) {
+        tracing::info!("stale imap connection, reconnecting");
+        *conn = None;
+    }
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -315,6 +333,7 @@ impl Inner {
 
     async fn sync_worker(self: Arc<Self>, email: String, mut rx: mpsc::UnboundedReceiver<SyncJob>) {
         let mut conn: Option<RealImap> = None;
+        let mut used = Instant::now();
         let mut tick = tokio::time::interval(SYNC_INTERVAL);
         let mut failures = 0u32;
         loop {
@@ -336,7 +355,9 @@ impl Inner {
                 }
             }
             self.status(&email, SyncState::Syncing, "sync");
+            check_alive(&mut conn, used).await;
             let mut res = self.run_sync(&email, &mut conn, &job).await;
+            used = Instant::now();
             if res.is_err() && conn.is_some() {
                 // stale connection: one fresh attempt
                 conn = None;
@@ -441,9 +462,14 @@ impl Inner {
         match action {
             Action::Body(id) => {
                 let m = self.db.message(*id)?;
-                sync::fetch_body(c, &self.db, &m).await?;
-                self.emit(Event::BodyReady { id: *id });
-                Ok(Vec::new())
+                if sync::fetch_body(c, &self.db, &m).await? {
+                    self.emit(Event::BodyReady { id: *id });
+                    Ok(Vec::new())
+                } else {
+                    // gone from the server: a sync drops the row (announcing
+                    // the body would only make the view ask for it again)
+                    Ok(vec![m.folder_id])
+                }
             }
             Action::Flags {
                 folder,
@@ -566,9 +592,12 @@ impl Inner {
         mut rx: mpsc::UnboundedReceiver<Action>,
     ) {
         let mut conn: Option<RealImap> = None;
+        let mut used = Instant::now();
         while let Some(action) = rx.recv().await {
             let mut slot = Some(action);
+            check_alive(&mut conn, used).await;
             let mut res = self.run_action(&email, &mut conn, &mut slot).await;
+            used = Instant::now();
             if res.is_err() && slot.is_some() {
                 conn = None;
                 res = self.run_action(&email, &mut conn, &mut slot).await;
