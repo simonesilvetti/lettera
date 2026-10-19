@@ -117,6 +117,32 @@ fn children_arriving_first_are_adopted() {
 }
 
 #[test]
+fn newest_first_gives_the_same_threads() {
+    // the order sync downloads in: the subject-only message and the replies
+    // come before the root they belong with
+    let (db, acc, inbox) = setup();
+    for (uid, name) in [
+        (6, "11_folded_headers.eml"),
+        (5, "05_subject_only_strangers.eml"),
+        (4, "04_subject_only_same_people.eml"),
+        (3, "03_reply_in_reply_to_only.eml"),
+        (2, "02_reply_with_references.eml"),
+        (1, "01_plain.eml"),
+    ] {
+        insert(&db, acc, inbox, uid, name);
+    }
+    let page = db
+        .list_threads(inbox, "", 0, 50, chrono::Local::now())
+        .unwrap();
+    assert_eq!(page.total, 2);
+    let root = thread_of(&db, inbox, 1);
+    for uid in [2, 3, 4, 6] {
+        assert_eq!(thread_of(&db, inbox, uid), root, "uid {uid}");
+    }
+    assert_ne!(thread_of(&db, inbox, 5), root);
+}
+
+#[test]
 fn same_message_in_two_folders_shares_thread() {
     let (db, acc, inbox) = setup();
     let all = db

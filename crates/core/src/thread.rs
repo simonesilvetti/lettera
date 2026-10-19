@@ -101,6 +101,22 @@ pub fn assign(conn: &Connection, account_id: i64, env: &Envelope) -> Result<Stri
         }
         return Ok(key(account_id, refs[0]));
     }
+    // no reply headers: replies that arrived first wait in the thread named
+    // after this message, and messages matched by subject may sit in threads
+    // of their own (sync goes newest first). All of them become one thread,
+    // as they would have if the mail had arrived oldest first.
+    let own = key(account_id, &env.message_id);
+    let mut found: Vec<String> = Vec::new();
+    let waiting: Option<i64> = conn
+        .query_row(
+            "SELECT 1 FROM messages WHERE account_id = ?1 AND thread_id = ?2 LIMIT 1",
+            params![account_id, own],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if waiting.is_some() {
+        found.push(own.clone());
+    }
     let norm = normalize_subject(&env.subject);
     if !norm.is_empty() {
         let mine = env_participants(env);
@@ -136,12 +152,21 @@ pub fn assign(conn: &Connection, account_id: i64, env: &Envelope) -> Result<Stri
                 let v: Vec<Addr> = serde_json::from_str(&list).unwrap_or_default();
                 theirs.extend(participants(&v));
             }
-            if !mine.is_disjoint(&theirs) {
-                return Ok(thread);
+            if !mine.is_disjoint(&theirs) && !found.contains(&thread) {
+                found.push(thread);
             }
         }
     }
-    Ok(key(account_id, &env.message_id))
+    let Some(primary) = found.first().cloned() else {
+        return Ok(own);
+    };
+    for other in &found[1..] {
+        conn.execute(
+            "UPDATE messages SET thread_id = ?1 WHERE account_id = ?2 AND thread_id = ?3",
+            params![primary, account_id, other],
+        )?;
+    }
+    Ok(primary)
 }
 
 fn lookup_by_message_id(conn: &Connection, account_id: i64, mid: &str) -> Result<Option<String>> {
