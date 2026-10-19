@@ -120,7 +120,10 @@ async fn engine_end_to_end() {
     engine.add_account(account).await.expect("add account");
     let cfg = std::fs::read_to_string(&paths.config_file).unwrap();
     assert!(cfg.contains(&email) && !cfg.contains("\"pass\""), "{cfg}");
-    assert!(!cfg.contains("smtp_tls"), "the mode that works is saved: {cfg}");
+    assert!(
+        !cfg.contains("smtp_tls"),
+        "the mode that works is saved: {cfg}"
+    );
     assert_eq!(engine.list_accounts().len(), 1);
 
     // initial sync

@@ -356,7 +356,9 @@ mod tests {
         assert!(is_plaintext_reply(
             "Connection error: received corrupt message of type InvalidContentType"
         ));
-        assert!(!is_plaintext_reply("permanent error (535): bad credentials"));
+        assert!(!is_plaintext_reply(
+            "permanent error (535): bad credentials"
+        ));
     }
 
     fn src() -> MessageRow {
