@@ -17,7 +17,7 @@ pub fn set(email: &str, secret: &str) -> Result<()> {
 
 pub fn get(email: &str) -> Result<String> {
     entry(email)?.get_password().map_err(|e| match e {
-        keyring::Error::NoEntry => Error::Keyring(format!("nessun segreto per {email}")),
+        keyring::Error::NoEntry => Error::Keyring(format!("no secret for {email}")),
         other => Error::Keyring(other.to_string()),
     })
 }

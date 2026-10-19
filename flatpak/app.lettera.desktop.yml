@@ -1,6 +1,6 @@
-# Flatpak di lettera. Costruito con: just flatpak
-# La build scarica crate e pacchetti npm (--share=network): va bene per un
-# pacchetto locale, Flathub richiederebbe sorgenti vendorizzate.
+# lettera as a Flatpak. Built with: just flatpak
+# The build downloads crates and npm packages (--share=network): fine for a
+# local package, Flathub would need vendored sources.
 id: app.lettera.desktop
 runtime: org.gnome.Platform
 runtime-version: "51"
@@ -15,13 +15,13 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
-  # password e token nel portachiavi (Secret Service), notifiche
+  # passwords and tokens in the keyring (Secret Service), notifications
   - --talk-name=org.freedesktop.secrets
   - --talk-name=org.freedesktop.Notifications
-  # tema Omarchy, letto e osservato in sola lettura
+  # Omarchy theme, read and watched read-only
   - --filesystem=~/.config/omarchy:ro
   - --filesystem=~/.local/state/omarchy:ro
-  # allegati: salvataggio e scelta file
+  # attachments: saving and picking files
   - --filesystem=xdg-download
   - --filesystem=xdg-documents
   - --filesystem=xdg-pictures

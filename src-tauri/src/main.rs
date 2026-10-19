@@ -40,7 +40,7 @@ impl EventSink for Sink {
                 .body(subject)
                 .show();
             if let Err(e) = shown {
-                tracing::debug!("notifica: {e}");
+                tracing::debug!("notification: {e}");
             }
         }
         if let Err(e) = self.0.emit(name, payload) {
@@ -250,7 +250,7 @@ fn open_url(app: AppHandle, url: String) -> Res<()> {
         || lower.starts_with("https://")
         || lower.starts_with("mailto:"))
     {
-        return Err(format!("link non supportato: {url}"));
+        return Err(format!("unsupported link: {url}"));
     }
     app.opener().open_url(url, None::<&str>).map_err(err)
 }
@@ -306,7 +306,7 @@ fn main() -> anyhow::Result<()> {
             let opener_app = handle.clone();
             let opener: lettera_core::engine::Opener = Arc::new(move |url: String| {
                 if let Err(e) = opener_app.opener().open_url(url, None::<&str>) {
-                    tracing::warn!("apertura browser: {e}");
+                    tracing::warn!("opening browser: {e}");
                 }
             });
             let engine = Engine::start(rt, Paths::detect()?, Arc::new(Sink(handle)), opener)?;

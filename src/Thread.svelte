@@ -6,17 +6,17 @@
 <section class="thread">
   {#if app.thread}
     <div class="head">
-      <h1 class="selectable">{app.thread.subject || '(nessun oggetto)'}</h1>
+      <h1 class="selectable">{app.thread.subject || '(no subject)'}</h1>
       <p class="muted">
         {app.thread.messages.length}
-        {app.thread.messages.length === 1 ? 'messaggio' : 'messaggi'} · {app.thread.participants.join(', ')}
+        {app.thread.messages.length === 1 ? 'message' : 'messages'} · {app.thread.participants.join(', ')}
       </p>
     </div>
     {#each app.thread.messages as message, index (message.id)}
       <Message {message} {index} />
     {/each}
   {:else}
-    <p class="empty muted">{app.total ? '⏎ per aprire il thread selezionato' : ''}</p>
+    <p class="empty muted">{app.total ? '⏎ to open the selected thread' : ''}</p>
   {/if}
 </section>
 

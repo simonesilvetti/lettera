@@ -1,23 +1,23 @@
-# lettera — comandi di sviluppo. Rust e Node devono essere nel PATH.
+# lettera — development commands. Rust and Node must be on PATH.
 
 set shell := ["bash", "-cu"]
 
-# avvia l'app in sviluppo (vite + finestra tauri con ricarica)
+# run the app in development (vite + tauri window with live reload)
 dev:
     npm install --no-audit --no-fund
     cargo tauri dev
 
-# binario e pacchetti di release (target/release/lettera, target/release/bundle/)
+# release binary and packages (target/release/lettera, target/release/bundle/)
 build:
     npm install --no-audit --no-fund
     cargo tauri build
 
-# tutti i test; quelli contro dovecot/mailpit girano se LETTERA_IMAP_TEST è impostata
+# all tests; the ones against dovecot/mailpit run when LETTERA_IMAP_TEST is set
 test:
     cargo test --workspace
     npm test
 
-# test di integrazione con i server in docker
+# integration tests against the servers in docker
 test-integration:
     docker compose -f docker-compose.test.yml up -d
     LETTERA_IMAP_TEST=1 cargo test -p lettera-core --test dovecot --test engine_e2e
@@ -30,7 +30,7 @@ lint:
 fmt:
     cargo fmt --all
 
-# pacchetto flatpak (lettera.flatpak); installalo con: flatpak install --user lettera.flatpak
+# flatpak bundle (lettera.flatpak); install it with: flatpak install --user lettera.flatpak
 flatpak:
     flatpak run org.flatpak.Builder --user --force-clean --install-deps-from=flathub --repo=flatpak/repo flatpak/build flatpak/app.lettera.desktop.yml
     flatpak build-bundle flatpak/repo lettera.flatpak app.lettera.desktop --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo

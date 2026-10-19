@@ -37,16 +37,16 @@
           <input
             bind:this={search}
             value={app.query}
-            placeholder="cerca in {folderLabel(currentFolder())}"
+            placeholder="search {folderLabel(currentFolder())}"
             oninput={(e) => setQuery(e.currentTarget.value)}
             onfocus={() => (app.focus = 'search')}
           />
-          <span class="muted small">{app.total} risultati</span>
+          <span class="muted small">{app.total} results</span>
         </label>
       {:else}
         <div class="title">
           <strong>{folderLabel(currentFolder()) || 'lettera'}</strong>
-          <span class="muted">{app.unread} non letti · {app.total}</span>
+          <span class="muted">{app.unread} unread · {app.total}</span>
         </div>
       {/if}
       <span class="muted ellipsis">{app.account}</span>

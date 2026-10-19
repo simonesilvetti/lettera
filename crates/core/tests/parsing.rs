@@ -130,7 +130,7 @@ fn forwarded_message_attachment() {
     let body = parse_body(&raw);
     assert!(body.text.contains("Vedi sotto"));
     assert_eq!(body.attachments.len(), 1);
-    assert_eq!(body.attachments[0].filename, "messaggio.eml");
+    assert_eq!(body.attachments[0].filename, "message.eml");
     let inner = extract_attachment(&raw, body.attachments[0].index).unwrap();
     assert!(String::from_utf8_lossy(&inner).contains("inoltrato come allegato"));
 }

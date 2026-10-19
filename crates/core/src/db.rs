@@ -277,7 +277,7 @@ impl Db {
                 Self::folder_row,
             )
             .optional()?
-            .ok_or_else(|| Error::NotFound(format!("cartella {id}")))
+            .ok_or_else(|| Error::NotFound(format!("folder {id}")))
     }
 
     pub fn folder_by_role(&self, account_id: i64, role: &str) -> Result<Option<FolderRow>> {
@@ -426,7 +426,7 @@ impl Db {
                 message_row,
             )
             .optional()?
-            .ok_or_else(|| Error::NotFound(format!("messaggio {id}")))
+            .ok_or_else(|| Error::NotFound(format!("message {id}")))
     }
 
     pub fn messages(&self, ids: &[i64]) -> Result<Vec<MessageRow>> {
@@ -506,7 +506,7 @@ impl Db {
                  SELECT CASE WHEN d >= ?3 THEN 0 WHEN d >= ?4 THEN 1 WHEN d >= ?5 THEN 2 ELSE 3 END b, COUNT(*)
                  FROM t GROUP BY b ORDER BY b"
             ))?;
-            let labels = ["oggi", "ieri", "questa settimana", "prima"];
+            let labels = ["today", "yesterday", "this week", "earlier"];
             let rows = stmt.query_map(params![folder_id, fts, today, yesterday, week], |r| {
                 Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?))
             })?;
@@ -709,7 +709,7 @@ impl Db {
                 },
             )
             .optional()?
-            .ok_or_else(|| Error::NotFound(format!("allegato {id}")))
+            .ok_or_else(|| Error::NotFound(format!("attachment {id}")))
     }
 
     // ------------------------------------------------------------------ drafts

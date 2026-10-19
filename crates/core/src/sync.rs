@@ -84,7 +84,7 @@ pub async fn sync_folder_since<C: ImapClient>(
     let status = c.select(&folder.name).await?;
     let mut known_next = folder.uidnext;
     if folder.uidvalidity != 0 && status.uidvalidity != folder.uidvalidity {
-        tracing::info!("{}: UIDVALIDITY cambiata, risincronizzo", folder.name);
+        tracing::info!("{}: UIDVALIDITY changed, resyncing", folder.name);
         db.clear_folder(folder.id)?;
         known_next = 0;
         out.changed = true;

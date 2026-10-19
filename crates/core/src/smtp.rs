@@ -53,7 +53,7 @@ fn format_date(ts: i64) -> String {
     chrono::Local
         .timestamp_opt(ts, 0)
         .single()
-        .map(|d| d.format("%d/%m/%Y %H:%M").to_string())
+        .map(|d| d.format("%a, %b %-d, %Y at %H:%M").to_string())
         .unwrap_or_default()
 }
 
@@ -78,11 +78,7 @@ fn dedup(mut v: Vec<Addr>, exclude: &[String]) -> Vec<Addr> {
 /// Recipients, subject and quote for answering or forwarding `src`.
 pub fn template(kind: DraftKind, src: &MessageRow, src_text: &str, me: &str) -> Template {
     let quoted = || {
-        let mut q = format!(
-            "Il {}, {} ha scritto:\n",
-            format_date(src.date),
-            src.from.full()
-        );
+        let mut q = format!("On {}, {} wrote:\n", format_date(src.date), src.from.full());
         for line in src_text.trim_end().lines() {
             if line.starts_with('>') {
                 q.push('>');
@@ -134,7 +130,7 @@ pub fn template(kind: DraftKind, src: &MessageRow, src_text: &str, me: &str) -> 
             cc: Vec::new(),
             subject: prefixed("Fwd", &src.subject),
             quote: format!(
-                "---------- Messaggio inoltrato ----------\nDa: {}\nData: {}\nOggetto: {}\nA: {}\n{}\n{}\n",
+                "---------- Forwarded message ----------\nFrom: {}\nDate: {}\nSubject: {}\nTo: {}\n{}\n{}\n",
                 src.from.full(),
                 format_date(src.date),
                 src.subject,
@@ -301,7 +297,7 @@ where
         Ok(v) => Ok((v, ep.implicit_tls)),
         Err(e) if ep.implicit_tls && is_plaintext_reply(&e.to_string()) => {
             tracing::warn!(
-                "{}:{} non usa TLS implicito, riprovo con STARTTLS (imposta smtp_tls = \"starttls\")",
+                "{}:{} does not speak implicit TLS, retrying with STARTTLS (set smtp_tls = \"starttls\")",
                 ep.host,
                 ep.port
             );
@@ -318,7 +314,10 @@ pub async fn check(ep: &Endpoint, creds: &Credentials) -> Result<bool> {
     let (ok, implicit) =
         with_transport(ep, creds, |t| async move { t.test_connection().await }).await?;
     if !ok {
-        return Err(Error::Smtp(format!("{}:{} non risponde", ep.host, ep.port)));
+        return Err(Error::Smtp(format!(
+            "{}:{} does not answer",
+            ep.host, ep.port
+        )));
     }
     Ok(implicit)
 }
@@ -326,7 +325,7 @@ pub async fn check(ep: &Endpoint, creds: &Credentials) -> Result<bool> {
 pub async fn send(ep: &Endpoint, creds: &Credentials, o: &Outgoing, raw: &[u8]) -> Result<()> {
     let parse = |a: &str| {
         a.parse::<lettre::Address>()
-            .map_err(|e| Error::Smtp(format!("indirizzo non valido {a}: {e}")))
+            .map_err(|e| Error::Smtp(format!("invalid address {a}: {e}")))
     };
     let rcpts =
         o.to.iter()
@@ -335,7 +334,7 @@ pub async fn send(ep: &Endpoint, creds: &Credentials, o: &Outgoing, raw: &[u8]) 
             .map(|a| parse(&a.addr))
             .collect::<Result<Vec<_>>>()?;
     if rcpts.is_empty() {
-        return Err(Error::Smtp("nessun destinatario".into()));
+        return Err(Error::Smtp("no recipients".into()));
     }
     let envelope = SmtpEnvelope::new(Some(parse(&o.from.addr)?), rcpts)
         .map_err(|e| Error::Smtp(e.to_string()))?;
@@ -404,7 +403,7 @@ mod tests {
         assert_eq!(t.cc.len(), 1);
         assert_eq!(t.subject, "Re: piano");
         assert!(t.quote.contains("> ciao\n>> vecchio"));
-        assert!(t.quote.contains("Anna <anna@x.it> ha scritto:"));
+        assert!(t.quote.contains("Anna <anna@x.it> wrote:"));
     }
 
     #[test]

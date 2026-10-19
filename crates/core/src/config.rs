@@ -106,7 +106,7 @@ fn tls_mode(setting: Option<&str>, default: bool) -> Result<bool> {
         Some("implicit") | Some("tls") => Ok(true),
         Some("starttls") => Ok(false),
         Some(other) => Err(Error::Config(format!(
-            "tls {other:?} non valido: usa \"implicit\" o \"starttls\""
+            "invalid tls {other:?}: use \"implicit\" or \"starttls\""
         ))),
     }
 }
@@ -175,9 +175,9 @@ impl AccountConfig {
                 self.imap_port.unwrap_or(993),
             ),
             AccountKind::Imap => (
-                self.imap_host
-                    .clone()
-                    .ok_or_else(|| Error::Config(format!("{}: imap_host mancante", self.email)))?,
+                self.imap_host.clone().ok_or_else(|| {
+                    Error::Config(format!("{}: imap_host is missing", self.email))
+                })?,
                 self.imap_port.unwrap_or(993),
             ),
         };
@@ -197,9 +197,9 @@ impl AccountConfig {
                 self.smtp_port.unwrap_or(587),
             ),
             AccountKind::Imap => (
-                self.smtp_host
-                    .clone()
-                    .ok_or_else(|| Error::Config(format!("{}: smtp_host mancante", self.email)))?,
+                self.smtp_host.clone().ok_or_else(|| {
+                    Error::Config(format!("{}: smtp_host is missing", self.email))
+                })?,
                 self.smtp_port.unwrap_or(465),
             ),
         };
@@ -212,7 +212,7 @@ impl AccountConfig {
 
     pub fn validate(&self) -> Result<()> {
         if !self.email.contains('@') {
-            return Err(Error::Config(format!("email non valida: {}", self.email)));
+            return Err(Error::Config(format!("invalid email: {}", self.email)));
         }
         match self.kind {
             AccountKind::Imap => {
@@ -224,7 +224,7 @@ impl AccountConfig {
                     || self.client_secret.as_deref().unwrap_or("").is_empty()
                 {
                     return Err(Error::Config(format!(
-                        "{}: client_id e client_secret sono obbligatori per google",
+                        "{}: client_id and client_secret are required for google",
                         self.email
                     )));
                 }
@@ -252,7 +252,7 @@ impl Paths {
             });
         }
         let dirs = directories::ProjectDirs::from("", "", "lettera")
-            .ok_or_else(|| Error::Config("impossibile trovare la home".into()))?;
+            .ok_or_else(|| Error::Config("cannot find the home directory".into()))?;
         Ok(Paths {
             config_file: dirs.config_dir().join("config.toml"),
             data_dir: dirs.data_dir().to_path_buf(),
@@ -278,15 +278,40 @@ pub fn load(path: &Path) -> Result<Config> {
     }
 }
 
-const TEMPLATE: &str = r#"# lettera — configurazione. Ricaricata automaticamente quando la salvi.
-theme = "auto"        # auto | omarchy | dark | light
-font = "JetBrains Mono"
-font_size = 13
-sync_months = 48      # mesi di posta da sincronizzare (0 = tutta); per account: sync_months = N
-# firma in fondo ai messaggi (anche per account; signature = "" per nessuna):
+const TEMPLATE: &str = r#"# lettera configuration. Reloaded automatically when you save it.
+# Lines starting with # are comments: remove the # to turn an option on.
+
+theme = "auto"            # auto | omarchy | dark | light
+font = "JetBrains Mono"   # any installed monospace font
+font_size = 13            # interface size in px; message bodies are 1px larger
+sync_months = 48          # months of mail kept in sync, by arrival date (0 = all of it)
+
+# Signature added to new messages, replies and forwards, after a "-- " line.
+# Each account can override it with its own `signature` ("" = none).
 # signature = """
-# Simone
+# Your Name
+# +1 555 0100
 # """
+
+# Accounts are added from the app (":" then "add account") or by hand:
+#
+# [[accounts]]
+# name = "Work"                    # shown in the app and used as sender name
+# type = "imap"                    # imap | google
+# email = "name@example.com"
+# imap_host = "imap.example.com"
+# imap_port = 993                  # 993 = implicit TLS, other ports = STARTTLS
+# smtp_host = "smtp.example.com"
+# smtp_port = 465                  # 465 = implicit TLS, other ports = STARTTLS
+# username = "name@example.com"    # optional, defaults to the email
+# imap_tls = "starttls"            # optional, for non-standard ports: implicit | starttls
+# smtp_tls = "starttls"
+# sync_months = 12                 # optional, overrides the global value
+# signature = "Name · Work"        # optional, overrides the global signature
+# client_id = "…"                  # google only, see the README
+# client_secret = "…"              # google only
+#
+# Passwords and tokens live in the system keyring, never in this file.
 "#;
 
 /// Content of a fresh config file.
@@ -333,15 +358,35 @@ fn account_block(a: &AccountConfig) -> String {
     if let Some(v) = &a.smtp_tls {
         out += &format!("smtp_tls = {}\n", toml_str(v));
     }
-    if let Some(v) = a.sync_months {
-        out += &format!("sync_months = {v}\n");
-    }
-    if let Some(v) = &a.signature {
-        out += &format!("signature = {}\n", toml_str(v));
-    }
+    // Optional settings that are not set yet, as commented placeholders.
     if !a.is_google() {
-        out += "# la password sta nel keyring di sistema, mai nel file\n";
+        if a.username.is_none() {
+            out += "# username = \"name@example.com\"    # if the login differs from the email\n";
+        }
+        if a.imap_tls.is_none() {
+            out += "# imap_tls = \"starttls\"            # implicit | starttls, for non-standard ports\n";
+        }
+        if a.smtp_tls.is_none() {
+            out += "# smtp_tls = \"starttls\"\n";
+        }
     }
+    match a.sync_months {
+        Some(v) => out += &format!("sync_months = {v}\n"),
+        None => {
+            out +=
+                "# sync_months = 12                 # overrides the global value (0 = all mail)\n"
+        }
+    }
+    match &a.signature {
+        Some(v) => out += &format!("signature = {}\n", toml_str(v)),
+        None => out +=
+            "# signature = \"Name · Work\"        # overrides the global signature (\"\" = none)\n",
+    }
+    out += if a.is_google() {
+        "# the refresh token lives in the system keyring, never in this file\n"
+    } else {
+        "# the password lives in the system keyring, never in this file\n"
+    };
     out
 }
 
@@ -421,20 +466,20 @@ font = "JetBrains Mono"
 font_size = 13
 
 [[accounts]]
-name = "Lavoro"
+name = "Work"
 type = "imap"
-email = "nome@dominio.it"
-imap_host = "imap.dominio.it"
+email = "name@example.com"
+imap_host = "imap.example.com"
 imap_port = 993
-smtp_host = "smtp.dominio.it"
+smtp_host = "smtp.example.com"
 smtp_port = 465
-username = "nome@dominio.it"
+username = "name@example.com"
 
-# commento da preservare
+# comment to keep
 [[accounts]]
 name = "Gmail"
 type = "google"
-email = "nome@gmail.com"
+email = "name@gmail.com"
 client_id = "id"
 client_secret = "secret"
 "#;
@@ -463,7 +508,7 @@ client_secret = "secret"
     #[test]
     fn append_and_remove_roundtrip() {
         let acc = AccountConfig {
-            name: "Casa \"mia\"".into(),
+            name: "Home \"mine\"".into(),
             kind: AccountKind::Imap,
             email: "a@b.it".into(),
             imap_host: Some("imap.b.it".into()),
@@ -476,7 +521,7 @@ client_secret = "secret"
             imap_tls: Some("implicit".into()),
             smtp_tls: None,
             sync_months: Some(6),
-            signature: Some("Casa\n\"tel\" 123".into()),
+            signature: Some("Home\n\"tel\" 123".into()),
         };
         let text = append_account(SAMPLE, &acc);
         let c = parse(&text).unwrap();
@@ -484,11 +529,11 @@ client_secret = "secret"
         assert_eq!(c.accounts[2], acc);
         assert!(c.accounts[2].imap().unwrap().implicit_tls);
         assert!(!c.accounts[2].smtp().unwrap().implicit_tls);
-        let back = remove_account(&text, "nome@dominio.it");
+        let back = remove_account(&text, "name@example.com");
         let c = parse(&back).unwrap();
         assert_eq!(c.accounts.len(), 2);
-        assert!(back.contains("# commento da preservare"));
-        assert!(c.accounts.iter().all(|a| a.email != "nome@dominio.it"));
+        assert!(back.contains("# comment to keep"));
+        assert!(c.accounts.iter().all(|a| a.email != "name@example.com"));
     }
 
     #[test]
@@ -524,15 +569,52 @@ client_secret = "secret"
     }
 
     #[test]
+    fn template_has_placeholders_and_survives_add_remove() {
+        let fresh = template();
+        assert_eq!(parse(&fresh).unwrap(), Config::default());
+        assert!(fresh.contains("# signature = \"\"\""));
+        let acc = AccountConfig {
+            name: "Work".into(),
+            kind: AccountKind::Imap,
+            email: "w@example.com".into(),
+            imap_host: Some("imap.example.com".into()),
+            imap_port: None,
+            smtp_host: Some("smtp.example.com".into()),
+            smtp_port: None,
+            username: None,
+            client_id: None,
+            client_secret: None,
+            imap_tls: None,
+            smtp_tls: None,
+            sync_months: None,
+            signature: None,
+        };
+        let added = append_account("", &acc);
+        let c = parse(&added).unwrap();
+        assert_eq!(c.accounts, vec![acc]);
+        assert!(
+            added.contains("# sync_months = 12") && added.contains("# smtp_tls = \"starttls\"")
+        );
+        // placeholders, once uncommented, are valid settings
+        let at = added.rfind("# sync_months = 12").unwrap();
+        let enabled = format!("{}{}", &added[..at], &added[at + 2..]);
+        assert_eq!(parse(&enabled).unwrap().accounts[0].sync_months, Some(12));
+        assert_eq!(
+            remove_account(&added, "w@example.com").trim_end(),
+            fresh.trim_end()
+        );
+    }
+
+    #[test]
     fn signatures() {
-        let c = parse("signature = \"\"\"\nSimone\n+39 333\n\"\"\"\n[[accounts]]\nname = \"a\"\ntype = \"google\"\nemail = \"a@b.it\"\n[[accounts]]\nname = \"b\"\ntype = \"google\"\nemail = \"b@b.it\"\nsignature = \"Ufficio\"\n[[accounts]]\nname = \"c\"\ntype = \"google\"\nemail = \"c@b.it\"\nsignature = \"\"\n").unwrap();
+        let c = parse("signature = \"\"\"\nSimone\n+39 333\n\"\"\"\n[[accounts]]\nname = \"a\"\ntype = \"google\"\nemail = \"a@b.it\"\n[[accounts]]\nname = \"b\"\ntype = \"google\"\nemail = \"b@b.it\"\nsignature = \"Office\"\n[[accounts]]\nname = \"c\"\ntype = \"google\"\nemail = \"c@b.it\"\nsignature = \"\"\n").unwrap();
         assert_eq!(
             c.signature(&c.accounts[0]).as_deref(),
             Some("Simone\n+39 333")
         );
-        assert_eq!(c.signature(&c.accounts[1]).as_deref(), Some("Ufficio"));
+        assert_eq!(c.signature(&c.accounts[1]).as_deref(), Some("Office"));
         assert_eq!(c.signature(&c.accounts[2]), None);
-        assert_eq!(signed_body(Some("Ufficio")), "\n\n-- \nUfficio");
+        assert_eq!(signed_body(Some("Office")), "\n\n-- \nOffice");
         assert_eq!(signed_body(None), "");
     }
 

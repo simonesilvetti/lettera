@@ -111,7 +111,7 @@ pub fn parse_omarchy(text: &str) -> Option<Tokens> {
     let table: toml::Table = match toml::from_str(text) {
         Ok(t) => t,
         Err(e) => {
-            tracing::warn!("colors.toml non valido: {e}");
+            tracing::warn!("invalid colors.toml: {e}");
             return None;
         }
     };
@@ -155,7 +155,7 @@ pub fn read_omarchy() -> Option<Tokens> {
             Ok(text) => return parse_omarchy(&text),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
             Err(e) => {
-                tracing::warn!("lettura {} fallita: {e}", path.display());
+                tracing::warn!("reading {} failed: {e}", path.display());
                 continue;
             }
         }
@@ -169,7 +169,7 @@ pub fn resolve(theme: &str, font: &str, font_size: u32) -> ThemePayload {
         "light" => Some(light()),
         "auto" | "omarchy" => read_omarchy(),
         other => {
-            tracing::warn!("tema sconosciuto {other:?}, uso auto");
+            tracing::warn!("unknown theme {other:?}, using auto");
             read_omarchy()
         }
     };

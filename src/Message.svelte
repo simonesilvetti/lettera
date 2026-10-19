@@ -88,15 +88,15 @@
       <span class="date muted">{longDate(message.date)}</span>
     </button>
     <p class="to muted ellipsis">
-      a {people(message.to) || '—'}{message.cc.length ? `, cc ${people(message.cc)}` : ''}
+      to {people(message.to) || '—'}{message.cc.length ? `, cc ${people(message.cc)}` : ''}
     </p>
 
     {#if !body || !body.ready}
-      <p class="muted body">caricamento…</p>
+      <p class="muted body">loading…</p>
     {:else if html && body.html}
       <iframe
         bind:this={frame}
-        title="originale html"
+        title="original html"
         sandbox="allow-same-origin"
         srcdoc={body.html}
         style:height="{frameHeight}px"
@@ -108,7 +108,7 @@
           {#if block.kind === 'quote'}
             {@const key = `${message.id}:${b}`}
             <button class="quote-toggle muted" onclick={() => (app.quotes[key] = !app.quotes[key])}>
-              ··· {block.lines} {block.lines === 1 ? 'riga citata' : 'righe citate'}
+              ··· {block.lines} {block.lines === 1 ? 'quoted line' : 'quoted lines'}
             </button>
             {#if app.quotes[key]}
               <div class="quote muted">{block.text}</div>
@@ -119,7 +119,7 @@
           {/if}
         {/each}
         {#if body.blocks.length === 0}
-          <p class="muted">(messaggio vuoto)</p>
+          <p class="muted">(empty message)</p>
         {/if}
       </div>
     {/if}
@@ -128,23 +128,23 @@
       <div class="files">
         {#each files as f (f.id)}
           <button class="file" onclick={() => saveAttachment(f)}>
-            <span class="muted">allegato</span> {f.filename} <span class="muted">· {size(f.size)}</span>
+            <span class="muted">attachment</span> {f.filename} <span class="muted">· {size(f.size)}</span>
           </button>
         {/each}
       </div>
     {/if}
 
     <div class="actions">
-      <button class="hint" onclick={() => run('reply')}><b>r</b> rispondi</button>
+      <button class="hint" onclick={() => run('reply')}><b>r</b> reply</button>
       <span class="muted">·</span>
-      <button class="hint" onclick={() => run('reply-all')}><b>a</b> rispondi a tutti</button>
+      <button class="hint" onclick={() => run('reply-all')}><b>a</b> reply all</button>
       <span class="muted">·</span>
-      <button class="hint" onclick={() => run('forward')}><b>f</b> inoltra</button>
+      <button class="hint" onclick={() => run('forward')}><b>f</b> forward</button>
       <span class="muted">·</span>
-      <button class="hint" onclick={() => run('archive')}><b>e</b> archivia</button>
+      <button class="hint" onclick={() => run('archive')}><b>e</b> archive</button>
       <span class="muted">·</span>
       <button class="hint" onclick={() => run(html ? 'reading' : 'html')}>
-        <b>v</b> {html ? 'modalità lettura' : 'originale html'}
+        <b>v</b> {html ? 'reading mode' : 'original html'}
       </button>
     </div>
   {/if}

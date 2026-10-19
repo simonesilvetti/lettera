@@ -155,7 +155,7 @@ impl Inner {
         let refresh = self
             .secret(&acc.email)
             .await
-            .map_err(|_| Error::Auth("accesso google necessario: usa :aggiungi account".into()))?;
+            .map_err(|_| Error::Auth("google sign-in needed: use :add account".into()))?;
         let t = oauth::refresh(
             acc.client_id.as_deref().unwrap_or(""),
             acc.client_secret.as_deref().unwrap_or(""),
@@ -214,7 +214,7 @@ impl Inner {
     fn act(&self, email: &str, a: Action) -> Result<()> {
         lock(&self.workers)
             .get(email)
-            .ok_or_else(|| Error::NotFound(format!("account {email} non attivo")))?
+            .ok_or_else(|| Error::NotFound(format!("account {email} is not running")))?
             .actions
             .send(a)
             .map_err(|_| Error::Other("worker fermo".into()))
@@ -437,7 +437,7 @@ impl Inner {
             } => {
                 if *create {
                     if let Err(e) = c.create(dest).await {
-                        tracing::debug!("create {dest}: {e} (probabilmente esiste già)");
+                        tracing::debug!("create {dest}: {e} (probably exists already)");
                     }
                 }
                 sync::move_messages(c, &from.name, uids, dest).await?;
@@ -594,7 +594,7 @@ impl Inner {
                     let _ = self.db.delete_account(&e);
                 }
             }
-            Err(e) => tracing::warn!("pulizia account: {e}"),
+            Err(e) => tracing::warn!("account cleanup: {e}"),
         }
     }
 
@@ -607,7 +607,7 @@ impl Inner {
                     .unwrap_or_else(|p| p.into_inner())
                     .clone();
                 if old != cfg {
-                    tracing::info!("config ricaricato");
+                    tracing::info!("config reloaded");
                     let resync: Vec<String> = cfg
                         .accounts
                         .iter()
@@ -623,14 +623,14 @@ impl Inner {
                     self.reconcile_accounts();
                     self.emit(Event::AccountsChanged);
                     for email in resync {
-                        tracing::info!("{email}: finestra di sync cambiata, risincronizzo");
+                        tracing::info!("{email}: sync window changed, resyncing");
                         self.request_sync(&email, SyncJob::default());
                     }
                 }
             }
             Err(e) => {
-                tracing::warn!("config non valido: {e}");
-                self.status("", SyncState::Error, format!("config non valido: {e}"));
+                tracing::warn!("invalid config: {e}");
+                self.status("", SyncState::Error, format!("invalid config: {e}"));
             }
         }
         let cfg = self
@@ -641,7 +641,7 @@ impl Inner {
         let t = theme::resolve(&cfg.theme, &cfg.font, cfg.font_size);
         let mut current = lock(&self.theme);
         if *current != t {
-            tracing::info!("tema aggiornato");
+            tracing::info!("theme updated");
             *current = t.clone();
             drop(current);
             self.emit(Event::ThemeChanged(t));
@@ -659,7 +659,7 @@ impl Inner {
         let mut watcher = match watcher {
             Ok(w) => w,
             Err(e) => {
-                tracing::warn!("watcher non disponibile: {e}");
+                tracing::warn!("watcher unavailable: {e}");
                 return;
             }
         };
@@ -698,7 +698,7 @@ impl Engine {
         let cfg = match config::load(&paths.config_file) {
             Ok(c) => c,
             Err(e) => {
-                tracing::warn!("config non valido: {e}");
+                tracing::warn!("invalid config: {e}");
                 Config::default()
             }
         };
@@ -777,7 +777,7 @@ impl Engine {
         let kind = match n.kind.as_str() {
             "google" => AccountKind::Google,
             "imap" => AccountKind::Imap,
-            other => return Err(Error::Config(format!("tipo account sconosciuto: {other}"))),
+            other => return Err(Error::Config(format!("unknown account type: {other}"))),
         };
         let clean = |s: &Option<String>| {
             s.as_ref()
@@ -812,14 +812,14 @@ impl Engine {
     pub async fn add_account(&self, n: NewAccount) -> Result<()> {
         let acc = Self::account_from(&n)?;
         if acc.is_google() {
-            return Err(Error::Config("per google usa accedi con google".into()));
+            return Err(Error::Config("for google use sign in with google".into()));
         }
         if self.list_accounts().iter().any(|a| a.email == acc.email) {
-            return Err(Error::Config(format!("{} esiste già", acc.email)));
+            return Err(Error::Config(format!("{} already exists", acc.email)));
         }
         let password = n.password.clone().unwrap_or_default();
         if password.is_empty() {
-            return Err(Error::Config("password mancante".into()));
+            return Err(Error::Config("password is missing".into()));
         }
         let creds = Credentials::Password {
             username: acc.username().to_string(),
@@ -830,7 +830,7 @@ impl Engine {
         let smtp_ep = acc.smtp()?;
         let implicit = smtp::check(&smtp_ep, &creds).await.map_err(|e| {
             Error::Smtp(format!(
-                "invio non configurato bene ({}:{}): {e}",
+                "sending is not set up correctly ({}:{}): {e}",
                 smtp_ep.host, smtp_ep.port
             ))
         })?;
@@ -1126,7 +1126,7 @@ impl Engine {
         )?;
         rx.await
             .map_err(|_| Error::Other("worker fermo".into()))??
-            .ok_or_else(|| Error::NotFound("messaggio non più sul server".into()))
+            .ok_or_else(|| Error::NotFound("message is no longer on the server".into()))
     }
 
     pub async fn save_attachment(&self, attachment_id: i64, path: &Path) -> Result<()> {
@@ -1134,7 +1134,7 @@ impl Engine {
         let m = self.inner.db.message(a.message_id)?;
         let raw = self.raw_message(&m).await?;
         let bytes = parse::extract_attachment(&raw, a.part_index)
-            .ok_or_else(|| Error::NotFound(format!("allegato {}", a.filename)))?;
+            .ok_or_else(|| Error::NotFound(format!("attachment {}", a.filename)))?;
         tokio::fs::write(path, bytes).await?;
         Ok(())
     }
@@ -1221,7 +1221,7 @@ impl Engine {
             let name = Path::new(p)
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "allegato".into());
+                .unwrap_or_else(|| "attachment".into());
             let mime = smtp::guess_mime(&name).to_string();
             attachments.push((name, mime, bytes));
         }
@@ -1243,7 +1243,7 @@ impl Engine {
         let raw = smtp::build(&out)?;
         let creds = self.inner.credentials(&acc).await?;
         smtp::send(&acc.smtp()?, &creds, &out, &raw).await?;
-        tracing::info!("inviato {} da {}", out.message_id, acc.email);
+        tracing::info!("sent {} from {}", out.message_id, acc.email);
 
         let account_id = self.inner.db.account_id(&acc.email)?;
         let sent = self.inner.db.folder_by_role(account_id, "sent")?;

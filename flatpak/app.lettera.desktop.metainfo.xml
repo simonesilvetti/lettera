@@ -2,15 +2,15 @@
 <component type="desktop-application">
   <id>app.lettera.desktop</id>
   <name>lettera</name>
-  <summary>Client email minimale, fatto di testo</summary>
+  <summary>A minimal, text-first email client</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <developer id="app.lettera">
     <name>Simone Silvetti</name>
   </developer>
   <description>
-    <p>Un client email desktop essenziale per account IMAP e Google: lettura in testo,
-    ricerca, archiviazione, risposte e scorciatoie da tastiera. Segue il tema di Omarchy.</p>
+    <p>A minimal desktop email client for IMAP and Google accounts: plain-text reading,
+    search, archiving, replies and keyboard shortcuts. It follows the Omarchy theme.</p>
   </description>
   <launchable type="desktop-id">app.lettera.desktop.desktop</launchable>
   <content_rating type="oars-1.1"/>

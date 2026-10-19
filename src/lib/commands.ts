@@ -70,23 +70,23 @@ function folderItems(run: (id: number) => unknown, exclude?: number) {
 
 export const commands: Command[] = [
   // ------------------------------------------------------------ list / thread
-  { id: 'down', label: 'giù', keys: ['j', 'arrowdown'], scope: 'list', hidden: true, run: () => moveSelection(1) },
-  { id: 'up', label: 'su', keys: ['k', 'arrowup'], scope: 'list', hidden: true, run: () => moveSelection(-1) },
-  { id: 'top', label: 'inizio lista', keys: ['g g', 'home'], scope: 'list', hidden: true, run: () => (app.selected = 0) },
+  { id: 'down', label: 'down', keys: ['j', 'arrowdown'], scope: 'list', hidden: true, run: () => moveSelection(1) },
+  { id: 'up', label: 'up', keys: ['k', 'arrowup'], scope: 'list', hidden: true, run: () => moveSelection(-1) },
+  { id: 'top', label: 'top of list', keys: ['g g', 'home'], scope: 'list', hidden: true, run: () => (app.selected = 0) },
   {
     id: 'bottom',
-    label: 'fine lista',
+    label: 'end of list',
     keys: ['G', 'end'],
     scope: 'list',
     hidden: true,
     run: () => (app.selected = Math.max(0, app.total - 1)),
   },
-  { id: 'open', label: 'apri', shortcut: '⏎', keys: ['enter'], scope: 'list', hidden: true, when: hasThread, run: () => openThread() },
-  { id: 'msg-down', label: 'messaggio successivo', keys: ['j', 'arrowdown'], scope: 'thread', hidden: true, run: () => moveCursor(1) },
-  { id: 'msg-up', label: 'messaggio precedente', keys: ['k', 'arrowup'], scope: 'thread', hidden: true, run: () => moveCursor(-1) },
+  { id: 'open', label: 'open', shortcut: '⏎', keys: ['enter'], scope: 'list', hidden: true, when: hasThread, run: () => openThread() },
+  { id: 'msg-down', label: 'next message', keys: ['j', 'arrowdown'], scope: 'thread', hidden: true, run: () => moveCursor(1) },
+  { id: 'msg-up', label: 'previous message', keys: ['k', 'arrowup'], scope: 'thread', hidden: true, run: () => moveCursor(-1) },
   {
     id: 'expand',
-    label: 'espandi messaggio',
+    label: 'expand message',
     keys: ['enter'],
     scope: 'thread',
     hidden: true,
@@ -95,19 +95,19 @@ export const commands: Command[] = [
       if (m) toggleExpanded(m.id);
     },
   },
-  { id: 'close', label: 'chiudi thread', keys: ['escape'], scope: 'thread', hidden: true, run: closeThread },
-  { id: 'next-thread', label: 'thread successivo', shortcut: 'n', keys: ['n'], scope: 'thread', run: () => nextThread(1) },
-  { id: 'prev-thread', label: 'thread precedente', shortcut: 'p', keys: ['p'], scope: 'thread', run: () => nextThread(-1) },
+  { id: 'close', label: 'close thread', keys: ['escape'], scope: 'thread', hidden: true, run: closeThread },
+  { id: 'next-thread', label: 'next thread', shortcut: 'n', keys: ['n'], scope: 'thread', run: () => nextThread(1) },
+  { id: 'prev-thread', label: 'previous thread', shortcut: 'p', keys: ['p'], scope: 'thread', run: () => nextThread(-1) },
 
   // ------------------------------------------------------------------ actions
-  { id: 'archive', label: 'archivia', shortcut: 'e', keys: ['e'], scope: 'mail', when: hasThread, run: archive },
-  { id: 'delete', label: 'elimina', shortcut: '#', keys: ['#', 'delete'], scope: 'mail', when: hasThread, run: remove },
-  { id: 'read', label: 'segna come letto', scope: 'mail', when: hasThread, run: () => markRead(true) },
-  { id: 'unread', label: 'segna come non letto', shortcut: 'u', keys: ['u'], scope: 'mail', when: hasThread, run: () => markRead(false) },
-  { id: 'flag', label: 'segna/togli flag', shortcut: 's', keys: ['s'], scope: 'mail', when: hasThread, run: toggleFlag },
+  { id: 'archive', label: 'archive', shortcut: 'e', keys: ['e'], scope: 'mail', when: hasThread, run: archive },
+  { id: 'delete', label: 'delete', shortcut: '#', keys: ['#', 'delete'], scope: 'mail', when: hasThread, run: remove },
+  { id: 'read', label: 'mark as read', scope: 'mail', when: hasThread, run: () => markRead(true) },
+  { id: 'unread', label: 'mark as unread', shortcut: 'u', keys: ['u'], scope: 'mail', when: hasThread, run: () => markRead(false) },
+  { id: 'flag', label: 'toggle flag', shortcut: 's', keys: ['s'], scope: 'mail', when: hasThread, run: toggleFlag },
   {
     id: 'move',
-    label: 'sposta in…',
+    label: 'move to…',
     scope: 'mail',
     when: hasThread,
     run: () =>
@@ -116,16 +116,16 @@ export const commands: Command[] = [
           const f = app.folders.find((x) => x.id === id);
           if (f) void moveTo(f);
         }, app.folderId),
-        'sposta in',
+        'move to',
       ),
   },
-  { id: 'reply', label: 'rispondi', shortcut: 'r', keys: ['r'], scope: 'mail', when: inThread, run: () => compose('reply') },
-  { id: 'reply-all', label: 'rispondi a tutti', shortcut: 'a', keys: ['a'], scope: 'mail', when: inThread, run: () => compose('reply_all') },
-  { id: 'forward', label: 'inoltra', shortcut: 'f', keys: ['f'], scope: 'mail', when: inThread, run: () => compose('forward') },
-  { id: 'compose', label: 'scrivi', shortcut: 'c', keys: ['c'], scope: 'mail', run: () => compose('new') },
+  { id: 'reply', label: 'reply', shortcut: 'r', keys: ['r'], scope: 'mail', when: inThread, run: () => compose('reply') },
+  { id: 'reply-all', label: 'reply all', shortcut: 'a', keys: ['a'], scope: 'mail', when: inThread, run: () => compose('reply_all') },
+  { id: 'forward', label: 'forward', shortcut: 'f', keys: ['f'], scope: 'mail', when: inThread, run: () => compose('forward') },
+  { id: 'compose', label: 'compose', shortcut: 'c', keys: ['c'], scope: 'mail', run: () => compose('new') },
   {
     id: 'html',
-    label: 'originale html',
+    label: 'original html',
     shortcut: 'v',
     keys: ['v'],
     scope: 'thread',
@@ -134,17 +134,17 @@ export const commands: Command[] = [
   },
   {
     id: 'reading',
-    label: 'modalità lettura',
+    label: 'reading mode',
     shortcut: 'v',
     keys: ['v'],
     scope: 'thread',
     when: () => !!cursorMessage() && !!app.htmlMode[cursorMessage()!.id],
     run: () => toggleHtml(),
   },
-  { id: 'images', label: 'abilita immagini', alias: 'immagini', scope: 'thread', when: () => !!cursorMessage(), run: () => enableImages() },
+  { id: 'images', label: 'enable images', alias: 'images', scope: 'thread', when: () => !!cursorMessage(), run: () => enableImages() },
   {
     id: 'save-attachment',
-    label: 'salva allegato…',
+    label: 'save attachment…',
     shortcut: 'o',
     keys: ['o'],
     scope: 'thread',
@@ -152,26 +152,26 @@ export const commands: Command[] = [
     run: () => {
       const list = app.attachments[cursorMessage()?.id ?? -1] ?? [];
       if (list.length === 1) void saveAttachment(list[0]);
-      else openPalette(list.map((a) => ({ label: a.filename, run: () => saveAttachment(a) })), 'salva allegato');
+      else openPalette(list.map((a) => ({ label: a.filename, run: () => saveAttachment(a) })), 'save attachment');
     },
   },
 
   // --------------------------------------------------------------- navigation
-  { id: 'search', label: 'cerca', shortcut: '/', keys: ['/'], scope: 'mail', run: () => (app.focus = 'search') },
-  { id: 'go-inbox', label: 'vai a inbox', shortcut: 'g i', keys: ['g i'], scope: 'mail', run: () => goToRole('inbox') },
-  { id: 'go-archive', label: 'vai a archivio', shortcut: 'g a', keys: ['g a'], scope: 'mail', run: () => goToRole('archive') },
-  { id: 'go-sent', label: 'vai a inviati', shortcut: 'g s', keys: ['g s'], scope: 'mail', run: () => goToRole('sent') },
-  { id: 'go-trash', label: 'vai a cestino', shortcut: 'g t', keys: ['g t'], scope: 'mail', run: () => goToRole('trash') },
-  { id: 'go-drafts', label: 'vai a bozze', shortcut: 'g d', keys: ['g d'], scope: 'mail', run: () => goToRole('drafts') },
+  { id: 'search', label: 'search', shortcut: '/', keys: ['/'], scope: 'mail', run: () => (app.focus = 'search') },
+  { id: 'go-inbox', label: 'go to inbox', shortcut: 'g i', keys: ['g i'], scope: 'mail', run: () => goToRole('inbox') },
+  { id: 'go-archive', label: 'go to archive', shortcut: 'g a', keys: ['g a'], scope: 'mail', run: () => goToRole('archive') },
+  { id: 'go-sent', label: 'go to sent', shortcut: 'g s', keys: ['g s'], scope: 'mail', run: () => goToRole('sent') },
+  { id: 'go-trash', label: 'go to trash', shortcut: 'g t', keys: ['g t'], scope: 'mail', run: () => goToRole('trash') },
+  { id: 'go-drafts', label: 'go to drafts', shortcut: 'g d', keys: ['g d'], scope: 'mail', run: () => goToRole('drafts') },
   {
     id: 'go-folder',
-    label: 'vai a cartella…',
+    label: 'go to folder…',
     scope: 'mail',
-    run: () => openPalette(folderItems((id) => selectFolder(id)), 'vai a cartella'),
+    run: () => openPalette(folderItems((id) => selectFolder(id)), 'go to folder'),
   },
   {
     id: 'account',
-    label: 'cambia account…',
+    label: 'switch account…',
     shortcut: '⌃1…9',
     scope: 'global',
     when: () => app.accounts.length > 0,
@@ -182,7 +182,7 @@ export const commands: Command[] = [
           hint: `⌃${i + 1}`,
           run: () => selectAccount(a.email),
         })),
-        'cambia account',
+        'switch account',
       ),
   },
   ...Array.from({ length: 9 }, (_, i): Command => ({
@@ -194,10 +194,10 @@ export const commands: Command[] = [
     when: () => !!app.accounts[i] && app.screen === 'inbox',
     run: () => selectAccount(app.accounts[i].email),
   })),
-  { id: 'sync', label: 'sincronizza ora', shortcut: 'R', keys: ['R'], scope: 'mail', run: syncNow },
+  { id: 'sync', label: 'sync now', shortcut: 'R', keys: ['R'], scope: 'mail', run: syncNow },
   {
     id: 'add-account',
-    label: 'aggiungi account',
+    label: 'add account',
     scope: 'global',
     run: () => {
       app.setupOpen = true;
@@ -206,24 +206,24 @@ export const commands: Command[] = [
   },
   {
     id: 'config',
-    label: 'apri config',
+    label: 'open config',
     alias: 'config',
     scope: 'global',
     run: async () => {
       try {
-        flash(`apro ${await api.openConfig()}`);
+        flash(`opening ${await api.openConfig()}`);
       } catch (e) {
         flash(String(e), true);
       }
     },
   },
   { id: 'info', label: 'info', scope: 'global', run: showInfo },
-  { id: 'palette', label: 'comandi', shortcut: ':', keys: [':'], scope: 'mail', hidden: true, run: () => openPalette() },
+  { id: 'palette', label: 'commands', shortcut: ':', keys: [':'], scope: 'mail', hidden: true, run: () => openPalette() },
 
   // ------------------------------------------------------------------ search
   {
     id: 'search-done',
-    label: 'conferma ricerca',
+    label: 'confirm search',
     keys: ['enter', 'arrowdown'],
     scope: 'search',
     hidden: true,
@@ -231,7 +231,7 @@ export const commands: Command[] = [
   },
   {
     id: 'search-cancel',
-    label: 'annulla ricerca',
+    label: 'cancel search',
     keys: ['escape'],
     scope: 'search',
     hidden: true,
@@ -242,7 +242,7 @@ export const commands: Command[] = [
   },
   {
     id: 'clear-search',
-    label: 'annulla ricerca',
+    label: 'cancel search',
     keys: ['escape'],
     scope: 'list',
     hidden: true,
@@ -251,11 +251,11 @@ export const commands: Command[] = [
   },
 
   // ------------------------------------------------------------------ compose
-  { id: 'send', label: 'invia', shortcut: '⌃⏎', keys: ['ctrl+enter'], scope: 'compose', run: send },
-  { id: 'attach', label: 'allega', shortcut: '⌃a', keys: ['ctrl+a'], scope: 'compose', run: attach },
+  { id: 'send', label: 'send', shortcut: '⌃⏎', keys: ['ctrl+enter'], scope: 'compose', run: send },
+  { id: 'attach', label: 'attach', shortcut: '⌃a', keys: ['ctrl+a'], scope: 'compose', run: attach },
   {
     id: 'bcc',
-    label: 'ccn',
+    label: 'bcc',
     shortcut: '⌃b',
     keys: ['ctrl+b'],
     scope: 'compose',
@@ -263,17 +263,17 @@ export const commands: Command[] = [
   },
   {
     id: 'quote',
-    label: 'mostra citazione',
+    label: 'show quote',
     shortcut: '⌃q',
     keys: ['ctrl+q'],
     scope: 'compose',
     when: () => !!app.draft?.quote,
     run: () => (app.draftQuote = !app.draftQuote),
   },
-  { id: 'cancel', label: 'annulla', shortcut: 'esc', keys: ['escape'], scope: 'compose', run: cancelCompose },
+  { id: 'cancel', label: 'cancel', shortcut: 'esc', keys: ['escape'], scope: 'compose', run: cancelCompose },
 
   // ------------------------------------------------------------------ palette
-  { id: 'palette-close', label: 'chiudi', keys: ['escape'], scope: 'palette', hidden: true, run: closePalette },
+  { id: 'palette-close', label: 'close', keys: ['escape'], scope: 'palette', hidden: true, run: closePalette },
 ];
 
 export function byId(id: string): Command | undefined {

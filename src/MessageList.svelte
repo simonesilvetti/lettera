@@ -33,9 +33,9 @@
 
 <div class="list" bind:this={el} bind:clientHeight={height} onscroll={() => (scrollTop = el?.scrollTop ?? 0)}>
   {#if app.loaded && app.total === 0}
-    <p class="empty muted">{app.query ? 'nessun risultato' : 'nessun messaggio'}</p>
+    <p class="empty muted">{app.query ? 'no results' : 'no messages'}</p>
   {:else if !app.folderId}
-    <p class="empty muted">sincronizzazione in corso…</p>
+    <p class="empty muted">syncing…</p>
   {/if}
   <div class="spacer" style:height="{win.height}px">
     <div style:transform="translateY({win.top}px)">
@@ -54,7 +54,7 @@
             <span class="dot"></span>
             {#if t}
               <span class="from ellipsis">{t.from}{t.count > 1 ? ` ${t.count}` : ''}</span>
-              <span class="subject ellipsis">{t.flagged ? '* ' : ''}{t.subject || '(nessun oggetto)'}</span>
+              <span class="subject ellipsis">{t.flagged ? '* ' : ''}{t.subject || '(no subject)'}</span>
               <span class="date">{shortDate(t.date)}</span>
             {/if}
           </button>

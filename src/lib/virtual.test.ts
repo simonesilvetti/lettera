@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import { rowAt, rowCount, rowOf, scrollInto, visibleWindow } from './virtual.ts';
 
 const groups = [
-  { label: 'oggi', count: 2 },
-  { label: 'ieri', count: 0 },
-  { label: 'prima', count: 3 },
+  { label: 'today', count: 2 },
+  { label: 'yesterday', count: 0 },
+  { label: 'earlier', count: 3 },
 ];
 
 test('rows interleave group headers and threads', () => {
   assert.equal(rowCount(groups), 7);
-  assert.deepEqual(rowAt(groups, 0), { kind: 'header', label: 'oggi' });
+  assert.deepEqual(rowAt(groups, 0), { kind: 'header', label: 'today' });
   assert.deepEqual(rowAt(groups, 2), { kind: 'thread', index: 1 });
-  assert.deepEqual(rowAt(groups, 3), { kind: 'header', label: 'prima' });
+  assert.deepEqual(rowAt(groups, 3), { kind: 'header', label: 'earlier' });
   assert.deepEqual(rowAt(groups, 6), { kind: 'thread', index: 4 });
   assert.equal(rowAt(groups, 7), null);
 });

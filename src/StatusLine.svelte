@@ -27,23 +27,23 @@
 
   const hints = $derived.by((): Hint[] => {
     if (app.screen === 'compose') {
-      if (app.confirmDiscard) return [hint('cancel', 'di nuovo per scartare')];
+      if (app.confirmDiscard) return [hint('cancel', 'again to discard')];
       const list = [hint('send'), hint('attach')];
       list.push(hint('bcc'));
-      if (app.draft?.quote) list.push(hint('quote', app.draftQuote ? 'nascondi citazione' : 'mostra citazione'));
+      if (app.draft?.quote) list.push(hint('quote', app.draftQuote ? 'hide quote' : 'show quote'));
       list.push(hint('cancel'));
       return list;
     }
     if (app.screen === 'setup') {
       const submit = () => document.querySelector<HTMLFormElement>('.setup form')?.requestSubmit();
-      const list: Hint[] = [{ key: '⏎', label: 'conferma', run: submit }];
-      if (app.accounts.length) list.push({ key: 'esc', label: 'annulla', run: closeSetup });
+      const list: Hint[] = [{ key: '⏎', label: 'confirm', run: submit }];
+      if (app.accounts.length) list.push({ key: 'esc', label: 'cancel', run: closeSetup });
       return list;
     }
-    if (app.focus === 'search') return [hint('search-done', 'conferma', '⏎'), hint('search-cancel', 'annulla', 'esc')];
+    if (app.focus === 'search') return [hint('search-done', 'confirm', '⏎'), hint('search-cancel', 'cancel', 'esc')];
     return [
-      { key: 'j/k', label: 'naviga' },
-      hint('open', 'apri'),
+      { key: 'j/k', label: 'navigate' },
+      hint('open', 'open'),
       hint('archive'),
       hint('reply'),
       hint('compose'),
@@ -72,12 +72,12 @@
   </div>
   <div class="right">
     {#if app.screen === 'compose'}
-      <span>da {app.draft?.account}</span>
+      <span>from {app.draft?.account}</span>
     {:else if app.account}
       {#if !sync || sync.state === 'syncing'}
         <span>sync <span class="dot"></span></span>
       {:else if sync.state === 'error'}
-        <span title={sync.message}>errore <span class="dot red"></span></span>
+        <span title={sync.message}>error <span class="dot red"></span></span>
       {:else}
         <span>sync {clock(sync.at)} <span class="dot green"></span></span>
       {/if}

@@ -1,103 +1,107 @@
-# Decisioni
+# Decisions
 
-Scelte non ovvie, una riga ciascuna. Quando una scelta era ambigua è stata presa l'opzione più semplice.
+Non-obvious choices, one line each. Where a choice was ambiguous, the simplest option was taken.
 
-## Ambiente e dipendenze
+## Environment and dependencies
 
-- Rust installato con rustup in `~/.cargo` senza toccare il PATH; `just` e `tauri-cli` con `cargo install`.
-- TypeScript 6 invece di 7: svelte-check non supporta ancora TS 7 senza installarne due versioni.
-- `keyring` 4 con la feature `v1`: Secret Service (zbus) su Linux, Portachiavi su macOS; servizio `lettera`, utente = email.
-- Le operazioni del keyring (bloccanti) girano in `spawn_blocking`.
-- Il frontend dipende solo da `@tauri-apps/api`: dialog dei file, apertura link e notifiche sono fatti in Rust.
-- `oauth2` usa la sua `reqwest` riesportata, per non avere due versioni di reqwest.
-- `mail-parser` con `full_encoding` per i charset non UTF-8 meno comuni.
-- Test del frontend con il runner integrato di Node (type stripping nativo): nessuna dipendenza di test.
+- Rust installed with rustup in `~/.cargo` without touching PATH; `just` and `tauri-cli` via `cargo install`.
+- TypeScript 6 rather than 7: svelte-check does not support TS 7 yet without installing two versions.
+- `keyring` 4 with the `v1` feature: Secret Service (zbus) on Linux, Keychain on macOS; service `lettera`, user = email.
+- Keyring operations (blocking) run in `spawn_blocking`.
+- The frontend depends only on `@tauri-apps/api`: file dialogs, opening links and notifications are done in Rust.
+- `oauth2` uses its re-exported `reqwest`, to avoid two reqwest versions.
+- `mail-parser` with `full_encoding` for less common non-UTF-8 charsets.
+- Frontend tests with Node's built-in runner (native type stripping): no test dependencies.
 
-## Rete e sicurezza
+## Network and security
 
-- Modalità TLS dedotta dalla porta (993/465 implicito, le altre STARTTLS); `imap_tls`/`smtp_tls` nel config per le porte non standard.
-- Connessione, TLS, saluto e login IMAP hanno un timeout complessivo di 45 s: una modalità TLS sbagliata diventa un errore leggibile, non un blocco.
-- Radici TLS di Mozilla (`webpki-roots`), più le CA in PEM indicate da `LETTERA_CA_FILE` (server con CA privata, test).
-- `LETTERA_HOME` mette config e database nella stessa cartella (prove e test).
-- Prima di salvare un account IMAP si fa un login reale: una password sbagliata non arriva né nel config né nel keyring.
-- Link aperti nel browser di sistema solo se `http`, `https` o `mailto`.
-- Originale HTML: ammonia al salvataggio (stili inline e attributi presentazionali ammessi), immagini remote tolte e CSP `default-src 'none'` alla visualizzazione.
-- iframe `sandbox="allow-same-origin"` senza `allow-scripts`: nessuno script gira, ma il frontend intercetta i click sui link e li manda al browser.
-- `:immagini` vale solo per quel messaggio e solo per la sessione corrente.
-- Tauri non aggiunge nonce a `style-src` (`dangerousDisableAssetCspModification: ["style-src"]`): con un nonce il browser ignorerebbe `'unsafe-inline'` e bloccherebbe gli stili inline (lista virtualizzata, HTML delle email). Gli script restano protetti dai nonce.
+- TLS mode inferred from the port (993/465 implicit, others STARTTLS); `imap_tls`/`smtp_tls` in the config for non-standard ports.
+- IMAP connect, TLS, greeting and login share a 45 s timeout: a wrong TLS mode becomes a readable error, not a hang.
+- SMTP: if implicit TLS gets clear text back (a STARTTLS port) it retries with STARTTLS, TLS still mandatory; adding an account also checks the SMTP login and saves the mode that worked.
+- Mozilla TLS roots (`webpki-roots`), plus the PEM CAs named by `LETTERA_CA_FILE` (servers with a private CA, tests).
+- `LETTERA_HOME` puts config and database in the same directory (trials and tests).
+- An IMAP account is saved only after a real login: a wrong password reaches neither the config nor the keyring.
+- Links open in the system browser only if `http`, `https` or `mailto`.
+- Original HTML: ammonia when stored (inline styles and presentational attributes allowed), remote images stripped and CSP `default-src 'none'` when shown.
+- iframe `sandbox="allow-same-origin"` without `allow-scripts`: no script runs, but the frontend intercepts link clicks and hands them to the browser.
+- `:enable images` applies to that message only and for the current session only.
+- Tauri adds no nonce to `style-src` (`dangerousDisableAssetCspModification: ["style-src"]`): with a nonce the browser would ignore `'unsafe-inline'` and block inline styles (virtual list, email HTML). Scripts stay nonce-protected.
+- Gmail's "Application-specific password required" becomes a message with instructions for app passwords.
 
 ## Sync
 
-- Tre connessioni per account: sync in background, azioni e corpi in primo piano, IDLE su INBOX.
-- Un solo `UID FETCH 1:* (FLAGS)` per cartella dà insieme UID nuovi, flag aggiornati e messaggi spariti; i nuovi si scaricano dal più recente, a blocchi di 200.
-- Sono nuovi tutti gli UID che mancano in locale (non solo quelli ≥ UIDNEXT): una prima sync interrotta si completa da sola.
-- Si sincronizzano tutte le cartelle selezionabili, anche *Tutti i messaggi* su Gmail; solo envelope.
-- Finestra di sync `sync_months` (default 48, 0 = tutto, sovrascrivibile per account): `UID SEARCH SINCE` per data di arrivo, poi flag da `<UID minimo>:*`; i messaggi usciti dalla finestra si cancellano solo in locale.
-- Corpi su richiesta più prefetch degli ultimi 30 giorni di INBOX, massimo 150 per giro.
-- `has_attachments` è stimato dall'header (`multipart/mixed`) finché non arriva il corpo, poi corretto dal parsing; niente BODYSTRUCTURE.
-- Gli allegati non sono salvati su disco: il messaggio si riscarica quando l'utente salva un allegato.
-- Azioni ottimistiche: SQLite cambia subito, il server dopo; gli UID in movimento sono esclusi dalla sync per non farli ricomparire.
-- Se un'azione fallisce sul server si risincronizza l'account: il server è la verità e la lista torna coerente.
-- Dopo ogni azione si risincronizzano le cartelle toccate (sorgente e destinazione).
-- Le richieste di sync in coda vengono unite in una sola.
-- Errori di sync: nuovo tentativo con attesa crescente (30 s … 5 min); IDLE si riconnette da 2 s a 5 min.
-- Server senza IDLE: NOOP e sync della INBOX ogni 60 s.
-- Un ruolo (sent, trash, …) va a una sola cartella; SPECIAL-USE vince sui nomi.
-- Archivio IMAP generico: cartella con ruolo `archive`, oppure `Archive` creata al primo uso.
-- Eliminare: sposta nel cestino (`Trash` creato se manca); dal cestino la cancellazione è definitiva.
-- Gmail: archiviare = `\Deleted` + `UID EXPUNGE` nella cartella; da Spam o Cestino invece sposta in *Tutti i messaggi*, perché lì l'expunge cancellerebbe per sempre.
-- Semantica Gmail anche per account `imap` su `imap.gmail.com` (password per le app); l'errore "Application-specific password required" diventa un messaggio con le istruzioni.
-- Gmail: dopo l'invio non si fa APPEND (lo fa Gmail) ma si risincronizza *Posta inviata*.
+- Three connections per account: background sync, foreground actions and bodies, IDLE on INBOX.
+- A single `UID FETCH <set> (FLAGS)` per folder gives new UIDs, updated flags and vanished messages at once; new ones are fetched newest first, 200 at a time.
+- Every UID missing locally is new (not only those ≥ UIDNEXT): an interrupted first sync completes by itself.
+- Every selectable folder is synced, *All Mail* on Gmail included; envelopes only.
+- Sync window `sync_months` (default 48, 0 = everything, per-account override): `UID SEARCH SINCE` by arrival date, then flags from `<lowest UID>:*`; messages leaving the window are deleted locally only.
+- Bodies on demand plus prefetch of the last 30 days of INBOX, at most 150 per round.
+- `has_attachments` is guessed from the header (`multipart/mixed`) until the body arrives, then corrected by parsing; no BODYSTRUCTURE.
+- Attachments are not stored on disk: the message is downloaded again when the user saves an attachment.
+- Optimistic actions: SQLite changes at once, the server afterwards; UIDs being moved are skipped by sync so they do not reappear.
+- If an action fails on the server the account is resynced: the server is the truth and the list becomes consistent again.
+- After each action the folders involved (source and destination) are resynced.
+- Queued sync requests are merged into one.
+- Sync errors: retry with growing delay (30 s … 5 min); IDLE reconnects from 2 s to 5 min.
+- Servers without IDLE: NOOP and INBOX sync every 60 s.
+- A role (sent, trash, …) goes to one folder only; SPECIAL-USE wins over names.
+- Generic IMAP archive: the folder with the `archive` role, otherwise `Archive` created on first use.
+- Delete: moves to trash (`Trash` created if missing); deleting from trash is permanent.
+- Gmail: archive = `\Deleted` + `UID EXPUNGE` in the folder; from Spam or Trash it moves to *All Mail* instead, since an expunge there would delete for good.
+- Gmail semantics also for `imap` accounts on `imap.gmail.com` (app passwords).
+- Gmail: no APPEND after sending (Gmail does it) but *Sent Mail* is resynced.
 
-## Dati e threading
+## Data and threading
 
-- `thread_id` è la stringa `<account_id>:<message-id della radice>`; unico tra account, quindi `get_thread` vuole solo l'id.
-- Le risposte arrivate prima del padre vengono "adottate" nel thread del padre al suo arrivo.
-- Messaggi senza Message-ID: id sintetico stabile (FNV-1a di data, mittente e oggetto).
-- Il thread mostra i messaggi di tutte le cartelle dell'account (per esempio le risposte in Inviati), una volta sola per Message-ID.
-- Indirizzi salvati come JSON `{name, addr}` per non perdere nomi con virgole.
-- Ricerca FTS5 nella cartella corrente: ogni parola come prefisso, in AND.
-- Gruppi per data calcolati in Rust in ora locale: oggi, ieri, ultimi 7 giorni, prima.
-- Migrazioni SQL numerate, applicate con `PRAGMA user_version`; database in WAL.
-- Il config viene modificato come testo (aggiunta o rimozione del blocco `[[accounts]]`) per non perdere i commenti dell'utente.
-- Un account tolto dal config viene fermato e cancellato dal database al ricaricamento.
+- `thread_id` is the string `<account_id>:<root message-id>`; unique across accounts, so `get_thread` only needs the id.
+- Replies that arrive before their parent are "adopted" into the parent's thread when it arrives.
+- Messages without a Message-ID: stable synthetic id (FNV-1a of date, sender and subject).
+- A thread shows messages from every folder of the account (e.g. replies in Sent), once per Message-ID.
+- Addresses stored as JSON `{name, addr}` so names with commas survive.
+- FTS5 search in the current folder: every word as a prefix, ANDed.
+- Date groups computed in Rust in local time: today, yesterday, last 7 days, earlier.
+- Numbered SQL migrations applied through `PRAGMA user_version`; database in WAL mode.
+- The config is edited as text (adding or removing an `[[accounts]]` block) so the user's comments survive.
+- New config files and new account blocks list every unset option as a commented placeholder.
+- An account removed from the config is stopped and deleted from the database on reload.
 
-## Composizione
+## Composing
 
-- Bozze solo locali in SQLite; una per (account, tipo, messaggio di partenza): `c`, `r`, `a`, `f` riprendono quella esistente.
-- La citazione è separata dal corpo, nascosta sotto `⌃q` e sempre aggiunta in fondo all'invio.
-- L'inoltro cita il testo originale ma non ne riporta gli allegati.
-- `esc`: se tutto è salvato chiude e la bozza resta; con modifiche non salvate chiede un secondo `esc` che scarta la bozza.
-- `send` aspetta la consegna SMTP (eccezione voluta alla regola dei 50 ms) per mostrare subito un eventuale errore.
-- I destinatari in Ccn finiscono solo nella busta SMTP, mai negli header.
-- Message-ID generato con il dominio del mittente.
+- Local-only drafts in SQLite; one per (account, kind, source message): `c`, `r`, `a`, `f` resume the existing one.
+- The quote is kept apart from the body, hidden behind `⌃q` and always appended on send.
+- Signature from the config (`signature`, global or per account, "" = none): put in the draft body after `-- `, above the quote, so it can be seen and edited before sending.
+- Forwarding quotes the original text but does not carry its attachments.
+- `esc`: if everything is saved it closes and the draft stays; with unsaved changes it asks for a second `esc` that discards the draft.
+- `send` waits for SMTP delivery (a deliberate exception to the 50 ms rule) to show any error right away.
+- Bcc recipients only go into the SMTP envelope, never into headers.
+- Message-ID generated with the sender's domain.
 
-## Interfaccia
+## Interface
 
-- Comandi e scorciatoie da un unico registro; le scorciatoie hanno uno *scope* (lista, thread, posta, composizione, palette, ricerca, globale).
-- Comandi Tauri con argomenti in snake_case (`rename_all`), come nella specifica.
-- Comandi in più rispetto alla lista: `prepare_draft`, `discard_draft`, `pick_files`, `open_url`, `enable_images`, `suggest_contacts`, `app_info`; eventi in più: `body:ready`, `accounts:changed`.
-- Gli hint con un tasto sono anche pulsanti che eseguono il comando del registro; disattivati se il comando non è disponibile.
-- `apri config` usa `gio open` su Linux (apre gli editor da terminale in un terminale), il plugin opener come ripiego e dentro Flatpak.
-- Firma nel config (`signature`, globale o per account, "" = nessuna): inserita nel corpo della bozza dopo `-- `, sopra la citazione, così si vede e si modifica prima dell'invio.
-- SMTP: se il TLS implicito riceve testo in chiaro (porta STARTTLS) si riprova con STARTTLS, sempre con TLS obbligatorio; l'aggiunta di un account prova anche il login SMTP e salva la modalità che funziona.
-- Aprire un thread lo segna come letto; `u` lo segna non letto e chiude il thread.
-- Archiviare o eliminare con il thread aperto apre il thread successivo.
-- Lista virtualizzata con righe a altezza fissa (38 px), intestazioni di gruppo comprese.
-- La palette mostra solo i comandi disponibili nel contesto; i tasti di navigazione non sono elencati.
-- `:info` mostra wordmark, versione, licenza e percorso del config.
-- Etichette italiane per le cartelle con un ruolo (inbox, inviati, bozze, cestino, archivio, spam).
-- Data in lista: l'anno compare solo se diverso da quello corrente.
-- Puntino di non letto quadrato: niente `border-radius`, nemmeno lì.
-- Il form Google chiede client id e secret: prima che l'account esista non c'è altro posto da cui prenderli.
-- OAuth con `access_type=offline`, `prompt=consent` e `login_hint`, per avere sempre un refresh token per l'email giusta.
-- Il form di aggiunta propone `imap.` e `smtp.` del dominio dell'email; la modalità TLS segue la porta ma si può cambiare con un clic.
-- Notifiche mandate dal processo Rust, solo per messaggi non letti arrivati via IDLE.
+- The whole app — interface, messages, errors, logs, config file, documentation — is in English.
+- Commands and shortcuts come from a single registry; shortcuts have a *scope* (list, thread, mail, compose, palette, search, global).
+- Tauri commands take snake_case arguments (`rename_all`), as in the spec.
+- Commands beyond the spec's list: `prepare_draft`, `discard_draft`, `pick_files`, `open_url`, `enable_images`, `suggest_contacts`, `app_info`; extra events: `body:ready`, `accounts:changed`.
+- Key hints are also buttons that run the registry command; disabled when the command is not available.
+- Removing an attachment while composing: click its name.
+- `open config` uses `gio open` on Linux (terminal editors open in a terminal), the opener plugin as a fallback and inside Flatpak.
+- Opening a thread marks it read; `u` marks it unread and closes the thread.
+- Archiving or deleting with a thread open opens the next thread.
+- Virtual list with fixed-height rows (38 px), group headers included.
+- The palette shows only the commands available in context; navigation keys are not listed.
+- `:info` shows the wordmark, version, license and config path.
+- Folders with a role get English labels (inbox, sent, drafts, trash, archive, spam, all mail).
+- Dates in the list: the year appears only if it is not the current one.
+- Square unread dot: no `border-radius`, not even there.
+- The Google form asks for client id and secret: before the account exists there is nowhere else to take them from.
+- OAuth with `access_type=offline`, `prompt=consent` and `login_hint`, to always get a refresh token for the right email.
+- The add form suggests `imap.` and `smtp.` of the email's domain; the TLS mode follows the port but can be switched with a click.
+- Notifications are sent by the Rust process, only for unread messages that arrived through IDLE.
 
-## Pacchetti e identità
+## Packaging and identity
 
-- Flatpak su GNOME 51 con build che scarica le dipendenze (`--share=network`): pacchetto locale, non pronto per Flathub; dati nel sandbox, non condivisi con l'installazione nativa.
-- Bundle `deb` e `rpm` su Linux, `app` e `dmg` su macOS; niente AppImage (scarica strumenti durante la build).
-- Icona disegnata a mano in SVG e convertita con `cargo tauri icon`; set ridotto alle icone desktop.
-- Wordmark: Special Elite (Apache 2.0) convertito in tracciati con fontTools, colore `currentColor`.
-- Test d'integrazione: Dovecot e Mailpit in Docker con una CA di test nel repository (la chiave privata della CA è stata scartata).
+- Flatpak on GNOME 51 with a build that downloads dependencies (`--share=network`): a local package, not ready for Flathub; data in the sandbox, not shared with a native install.
+- `deb` and `rpm` bundles on Linux, `app` and `dmg` on macOS; no AppImage (it downloads tools during the build).
+- Icon hand-drawn in SVG and converted with `cargo tauri icon`; set reduced to desktop icons.
+- Wordmark: Special Elite (Apache 2.0) converted to paths with fontTools, color `currentColor`.
+- Integration tests: Dovecot and Mailpit in Docker with a test CA in the repository (the CA's private key was discarded).

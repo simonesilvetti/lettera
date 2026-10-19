@@ -3,7 +3,7 @@ name = "lettera"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "lettera — client email minimale"
+description = "lettera — a minimal email client"
 
 [[bin]]
 name = "lettera"

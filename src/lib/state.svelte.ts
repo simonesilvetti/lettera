@@ -98,11 +98,11 @@ function fail(e: unknown) {
 
 const ROLE_LABELS: Record<string, string> = {
   inbox: 'inbox',
-  sent: 'inviati',
-  drafts: 'bozze',
-  trash: 'cestino',
-  archive: 'archivio',
-  all: 'tutti i messaggi',
+  sent: 'sent',
+  drafts: 'drafts',
+  trash: 'trash',
+  archive: 'archive',
+  all: 'all mail',
   junk: 'spam',
 };
 
@@ -113,14 +113,14 @@ export function folderLabel(f: FolderInfo | undefined): string {
   return parts[parts.length - 1].toLowerCase();
 }
 
-const DAYS = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
-const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
 function pad(n: number) {
   return String(n).padStart(2, '0');
 }
 
-/** "14:02" today, "gio 15" within the week, "14 ott" otherwise (plus year if not this one). */
+/** "14:02" today, "thu 15" within the week, "14 oct" otherwise (plus year if not this one). */
 export function shortDate(ts: number): string {
   const d = new Date(ts * 1000);
   const now = new Date();
@@ -336,7 +336,7 @@ export async function enableImages(id = cursorMessage()?.id) {
   await api.enableImages(id);
   app.htmlMode[id] = true;
   await loadBody(id);
-  flash('immagini abilitate per questo messaggio');
+  flash('images enabled for this message');
 }
 
 export function moveSelection(delta: number) {
@@ -378,11 +378,11 @@ async function removeAndAdvance(fn: (ids: number[]) => Promise<void>, done: stri
   }
 }
 
-export const archive = () => removeAndAdvance(api.archive, 'archiviato');
-export const remove = () => removeAndAdvance(api.delete, 'eliminato');
+export const archive = () => removeAndAdvance(api.archive, 'archived');
+export const remove = () => removeAndAdvance(api.delete, 'deleted');
 
 export async function moveTo(folder: FolderInfo) {
-  await removeAndAdvance((ids) => api.moveTo(ids, folder.id), `spostato in ${folderLabel(folder)}`);
+  await removeAndAdvance((ids) => api.moveTo(ids, folder.id), `moved to ${folderLabel(folder)}`);
 }
 
 export async function markRead(read: boolean) {
@@ -391,7 +391,7 @@ export async function markRead(read: boolean) {
   try {
     await (read ? api.setFlags(ids, ['\\Seen'], []) : api.setFlags(ids, [], ['\\Seen']));
     if (!read) closeThread();
-    flash(read ? 'segnato come letto' : 'segnato come non letto');
+    flash(read ? 'marked as read' : 'marked as unread');
   } catch (e) {
     fail(e);
   }
@@ -402,7 +402,7 @@ export async function toggleFlag() {
   if (!s) return;
   try {
     await (s.flagged ? api.setFlags(s.ids, [], ['\\Flagged']) : api.setFlags(s.ids, ['\\Flagged'], []));
-    flash(s.flagged ? 'flag tolto' : 'flag aggiunto');
+    flash(s.flagged ? 'flag removed' : 'flagged');
   } catch (e) {
     fail(e);
   }
@@ -413,7 +413,7 @@ export function goToRole(role: string) {
     app.folders.find((x) => x.role === role) ??
     (role === 'archive' ? app.folders.find((x) => x.role === 'all') : undefined);
   if (!f) {
-    flash(`nessuna cartella ${ROLE_LABELS[role] ?? role}`, true);
+    flash(`no ${ROLE_LABELS[role] ?? role} folder`, true);
     return;
   }
   void selectFolder(f.id);
@@ -425,9 +425,9 @@ export async function syncNow() {
 
 export async function saveAttachment(a: AttachmentInfo) {
   try {
-    flash(`scarico ${a.filename}…`);
+    flash(`downloading ${a.filename}…`);
     const path = await api.saveAttachment(a.id);
-    if (path) flash(`salvato in ${path}`);
+    if (path) flash(`saved to ${path}`);
   } catch (e) {
     fail(e);
   }
@@ -441,7 +441,7 @@ export async function compose(kind: DraftKind) {
   if (!app.account) return;
   const source = kind === 'new' ? null : (cursorMessage() ?? app.thread?.messages.at(-1))?.id ?? null;
   if (kind !== 'new' && source === null) {
-    flash('apri prima un thread', true);
+    flash('open a thread first', true);
     return;
   }
   try {
@@ -490,18 +490,18 @@ export async function cancelCompose() {
   }
   if (app.confirmDiscard && app.draft.id !== null) await api.discardDraft(app.draft.id);
   leaveCompose();
-  if (app.confirmDiscard) flash('bozza scartata');
+  if (app.confirmDiscard) flash('draft discarded');
 }
 
 export async function send() {
   if (!app.draft || app.sending) return;
   app.sending = true;
-  flash('invio…');
+  flash('sending…');
   try {
     await saveDraftNow();
     await api.send($state.snapshot(app.draft) as Draft);
     leaveCompose();
-    flash('inviato');
+    flash('sent');
   } catch (e) {
     fail(e);
   } finally {

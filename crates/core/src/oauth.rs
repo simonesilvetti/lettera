@@ -124,7 +124,7 @@ pub async fn authorize(
         let remaining = deadline.saturating_duration_since(Instant::now());
         let (mut sock, _) = tokio::time::timeout(remaining, listener.accept())
             .await
-            .map_err(|_| Error::Auth("tempo scaduto in attesa del browser".into()))??;
+            .map_err(|_| Error::Auth("timed out waiting for the browser".into()))??;
         let mut buf = vec![0u8; 8192];
         let n = sock.read(&mut buf).await.unwrap_or(0);
         let request = String::from_utf8_lossy(&buf[..n]).into_owned();
@@ -137,16 +137,14 @@ pub async fn authorize(
             continue;
         };
         let (status, msg, result) = match (code, state, error) {
-            (_, _, Some(e)) => ("400 Bad Request", "accesso negato.", Err(Error::Auth(e))),
-            (Some(c), Some(s), None) if s == *csrf.secret() => (
-                "200 OK",
-                "accesso riuscito. puoi chiudere questa finestra.",
-                Ok(c),
-            ),
+            (_, _, Some(e)) => ("400 Bad Request", "access denied.", Err(Error::Auth(e))),
+            (Some(c), Some(s), None) if s == *csrf.secret() => {
+                ("200 OK", "signed in. you can close this window.", Ok(c))
+            }
             _ => (
                 "400 Bad Request",
-                "risposta non valida.",
-                Err(Error::Auth("state o code mancanti".into())),
+                "invalid response.",
+                Err(Error::Auth("missing state or code".into())),
             ),
         };
         let body = format!("{PAGE}lettera · {msg}</body>");
@@ -164,11 +162,11 @@ pub async fn authorize(
         .set_pkce_verifier(verifier)
         .request_async(&http()?)
         .await
-        .map_err(|e| Error::Auth(format!("scambio del codice fallito: {e}")))?;
+        .map_err(|e| Error::Auth(format!("code exchange failed: {e}")))?;
     token
         .refresh_token()
         .map(|t| t.secret().clone())
-        .ok_or_else(|| Error::Auth("google non ha restituito un refresh token".into()))
+        .ok_or_else(|| Error::Auth("google returned no refresh token".into()))
 }
 
 /// Exchanges the refresh token for a fresh access token.
@@ -184,7 +182,7 @@ pub async fn refresh(
         .exchange_refresh_token(&RefreshToken::new(refresh_token.to_string()))
         .request_async(&http()?)
         .await
-        .map_err(|e| Error::Auth(format!("rinnovo del token fallito: {e}")))?;
+        .map_err(|e| Error::Auth(format!("token refresh failed: {e}")))?;
     let lifetime = token.expires_in().unwrap_or(Duration::from_secs(3600));
     Ok(AccessToken {
         token: token.access_token().secret().clone(),

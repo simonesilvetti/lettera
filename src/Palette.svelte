@@ -74,17 +74,17 @@
     {#if p.info}
       <div class="info">
         <span class="wordmark">{@html wordmark}</span>
-        <p class="muted">{app.info?.name} {app.info?.version} · licenza {app.info?.license} · {app.info?.config}</p>
+        <p class="muted">{app.info?.name} {app.info?.version} · license {app.info?.license} · {app.info?.config}</p>
       </div>
-      <input class="sr" bind:this={input} aria-label="chiudi" />
-      <div class="hints muted">esc chiudi</div>
+      <input class="sr" bind:this={input} aria-label="close" />
+      <div class="hints muted">esc close</div>
     {:else}
       <label class="prompt">
         <span class="accent">›</span>
         <input
           bind:this={input}
           bind:value={p.query}
-          placeholder={p.title || 'comando'}
+          placeholder={p.title || 'command'}
           oninput={() => (p.index = 0)}
           onkeydown={onkey}
         />
@@ -102,10 +102,10 @@
             </button>
           </li>
         {:else}
-          <li class="none muted">nessun comando</li>
+          <li class="none muted">no commands</li>
         {/each}
       </ul>
-      <div class="hints muted">↑↓ scegli · ⏎ esegui · esc chiudi</div>
+      <div class="hints muted">↑↓ choose · ⏎ run · esc close</div>
     {/if}
   </div>
 </div>

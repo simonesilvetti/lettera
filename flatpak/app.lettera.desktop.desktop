@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=lettera
-Comment=Client email minimale
+Comment=A minimal email client
 Exec=lettera
 Icon=app.lettera.desktop
 Terminal=false

@@ -163,9 +163,9 @@ fn attachment_list(m: &Message) -> Vec<AttachmentMeta> {
         }
         let filename = name.unwrap_or_else(|| {
             if part.is_message() {
-                "messaggio.eml".into()
+                "message.eml".into()
             } else {
-                format!("allegato-{}", index + 1)
+                format!("attachment-{}", index + 1)
             }
         });
         out.push(AttachmentMeta {

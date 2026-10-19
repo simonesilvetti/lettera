@@ -65,7 +65,7 @@
     await loadAccounts();
     await selectAccount(addr);
     app.screen = 'inbox';
-    flash(`account ${addr} aggiunto, sincronizzo…`);
+    flash(`account ${addr} added, syncing…`);
   }
 
   async function submit(e: Event) {
@@ -84,7 +84,7 @@
           off();
           busy = false;
           if (r.ok) await done(addr);
-          else error = r.error ?? 'accesso non riuscito';
+          else error = r.error ?? 'sign-in failed';
         });
         await api.startGoogleAuth(account());
         return;
@@ -108,27 +108,27 @@
 <div class="setup">
   <form onsubmit={submit}>
     <span class="wordmark">{@html wordmark}</span>
-    <p class="muted intro">aggiungi un account</p>
+    <p class="muted intro">add an account</p>
 
     <div class="rows">
     <div class="row">
-      <span class="muted">tipo</span>
+      <span class="muted">type</span>
       <span class="kinds">
         <button type="button" class:on={kind === 'imap'} onclick={() => (kind = 'imap')}>imap</button>
         <span class="muted">·</span>
         <button type="button" class:on={kind === 'google'} onclick={() => (kind = 'google')}>google</button>
       </span>
     </div>
-    <label class="row"><span class="muted">nome</span><input bind:this={first} bind:value={name} placeholder="Lavoro" /></label>
+    <label class="row"><span class="muted">name</span><input bind:this={first} bind:value={name} placeholder="Work" /></label>
     <label class="row">
       <span class="muted">email</span>
-      <input bind:value={email} onblur={guess} placeholder="nome@dominio.it" required />
+      <input bind:value={email} onblur={guess} placeholder="name@example.com" required />
     </label>
 
     {#if kind === 'imap'}
       <label class="row">
         <span class="muted">imap</span>
-        <input bind:value={imapHost} placeholder="imap.dominio.it" required />
+        <input bind:value={imapHost} placeholder="imap.example.com" required />
         <input class="port" bind:value={imapPort} inputmode="numeric" />
         <button type="button" class="tls" onclick={() => (imapTls = imapTls === 'implicit' ? 'starttls' : 'implicit')}>
           {imapTls === 'implicit' ? 'tls' : 'starttls'}
@@ -136,15 +136,15 @@
       </label>
       <label class="row">
         <span class="muted">smtp</span>
-        <input bind:value={smtpHost} placeholder="smtp.dominio.it" required />
+        <input bind:value={smtpHost} placeholder="smtp.example.com" required />
         <input class="port" bind:value={smtpPort} inputmode="numeric" />
         <button type="button" class="tls" onclick={() => (smtpTls = smtpTls === 'implicit' ? 'starttls' : 'implicit')}>
           {smtpTls === 'implicit' ? 'tls' : 'starttls'}
         </button>
       </label>
       <label class="row">
-        <span class="muted">utente</span>
-        <input bind:value={username} placeholder={email || 'come l’email'} />
+        <span class="muted">user</span>
+        <input bind:value={username} placeholder={email || 'same as email'} />
       </label>
       <label class="row">
         <span class="muted">password</span>
@@ -160,17 +160,17 @@
     </div>
     <p class="note muted">
       {kind === 'imap'
-        ? 'clic su tls/starttls per cambiare modalità · la password va nel keyring di sistema'
-        : 'crea un client oauth “app desktop” nella google cloud console (vedi readme)'}
+        ? 'click tls/starttls to switch mode · the password goes into the system keyring'
+        : 'create a “desktop app” oauth client in the google cloud console (see readme)'}
     </p>
 
     <div class="actions">
       <button type="submit" class="hint" disabled={busy}>
         <b>⏎</b>
         {#if busy}
-          {kind === 'google' ? 'attendo il browser…' : 'verifico l’accesso…'}
+          {kind === 'google' ? 'waiting for the browser…' : 'checking sign-in…'}
         {:else}
-          {kind === 'google' ? 'accedi con google' : 'aggiungi'}
+          {kind === 'google' ? 'sign in with google' : 'add'}
         {/if}
       </button>
     </div>

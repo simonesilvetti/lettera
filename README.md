@@ -4,54 +4,54 @@
   <img src="assets/wordmark.svg" height="40" alt="lettera">
 </p>
 
-**lettera** è un client email desktop minimale: tipografia monospace, righe sottili da 1px, niente icone, niente menu. Si usa da tastiera; tutto ciò che non ha una scorciatoia sta nella palette dei comandi (`:`).
+**lettera** is a minimal desktop email client: monospace type, thin 1px rules, no icons, no menus. It is driven from the keyboard; anything without a shortcut lives in the command palette (`:`). Every key hint on screen can also be clicked.
 
-Supporta due tipi di account, anche insieme:
+It supports two kinds of accounts, side by side:
 
-- **IMAP generico**: IMAP + SMTP con utente e password (TLS implicito o STARTTLS);
-- **Google**: Gmail via IMAP e SMTP con OAuth2 (`XOAUTH2`), senza Gmail API.
+- **Generic IMAP**: IMAP + SMTP with user and password (implicit TLS or STARTTLS);
+- **Google**: Gmail over IMAP and SMTP with OAuth2 (`XOAUTH2`), no Gmail API.
 
-Legge, cerca (full-text), archivia, elimina, sposta, risponde, inoltra e scrive email in testo semplice. Sincronizza in background, riceve la posta nuova con IDLE e manda una notifica di sistema. Su Omarchy prende i colori dal tema corrente e li aggiorna appena cambi tema.
+It reads, searches (full text), archives, deletes, moves, replies, forwards and writes plain-text email. It syncs in the background, gets new mail through IDLE and shows a system notification. On Omarchy it takes its colors from the current theme and follows theme switches live.
 
 ```
-inbox  12 non letti · 240                                           simone@esempio.it
+inbox  12 unread · 240                                              simone@example.com
 ──────────────────────────────────────┬──────────────────────────────────────────────
- OGGI                                 │  Pianificazione Q4
-▌■ Anna Rossi 3    Pianificazione Q4  │  3 messaggi · Anna Rossi, Marco Bianchi
-   Marco Bianchi   Fattura ottobre    │ ─────────────────────────────────────────────
-                                      │  Giulia Verdi               dom 18 ott 10:02
+ TODAY                                │  Q4 planning
+▌■ Anna Rossi 3    Q4 planning        │  3 messages · Anna Rossi, Marco Bianchi
+   Marco Bianchi   October invoice    │ ─────────────────────────────────────────────
+                                      │  Giulia Verdi               sun 18 oct 10:02
 ──────────────────────────────────────┴──────────────────────────────────────────────
-j/k naviga · ⏎ apri · e archivia · r rispondi · c scrivi · / cerca · : comandi   sync 22:14 ●
+j/k navigate · ⏎ open · e archive · r reply · c compose · / search · : commands   sync 22:14 ●
 ```
 
-## Requisiti
+## Requirements
 
-Per compilare servono **Rust** (stabile recente, via rustup), **Node.js** (≥ 22), [`just`](https://github.com/casey/just) e la CLI di Tauri:
+Building needs **Rust** (recent stable, via rustup), **Node.js** (≥ 22), [`just`](https://github.com/casey/just) and the Tauri CLI:
 
 ```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # se manca Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # if Rust is missing
 cargo install just
 cargo install tauri-cli --version "^2" --locked
 ```
 
-Librerie di sistema (WebKitGTK 4.1 per la finestra, Secret Service per il keyring):
+System libraries (WebKitGTK 4.1 for the window, Secret Service for the keyring):
 
-| sistema | pacchetti |
+| system | packages |
 |---|---|
 | Arch / Omarchy | `sudo pacman -S --needed webkit2gtk-4.1 base-devel curl wget file openssl librsvg gnome-keyring` |
 | Debian / Ubuntu | `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev gnome-keyring` |
-| macOS | Xcode Command Line Tools (`xcode-select --install`); il keyring è il Portachiavi |
+| macOS | Xcode Command Line Tools (`xcode-select --install`); the keyring is the Keychain |
 
-Su Linux serve un servizio Secret Service attivo (gnome-keyring o KWallet): password e token stanno solo lì.
+On Linux a running Secret Service (gnome-keyring or KWallet) is required: passwords and tokens are stored only there.
 
-## Installazione
+## Installation
 
 ```sh
-git clone <questo repository> lettera && cd lettera
+git clone <this repository> lettera && cd lettera
 just build
 ```
 
-`just build` produce `target/release/lettera` e i pacchetti in `target/release/bundle/` (`.deb` e `.rpm` su Linux, `.app` e `.dmg` su macOS). Su Arch puoi semplicemente copiare il binario:
+`just build` produces `target/release/lettera` and the packages in `target/release/bundle/` (`.deb` and `.rpm` on Linux, `.app` and `.dmg` on macOS). On Arch you can simply copy the binary:
 
 ```sh
 install -Dm755 target/release/lettera ~/.local/bin/lettera
@@ -60,155 +60,159 @@ install -Dm755 target/release/lettera ~/.local/bin/lettera
 ### Flatpak
 
 ```sh
-just flatpak                                  # crea lettera.flatpak
+just flatpak                                  # builds lettera.flatpak
 flatpak install --user lettera.flatpak
 flatpak run app.lettera.desktop
 ```
 
-Serve `flatpak` con il remote Flathub; la ricetta usa `org.flatpak.Builder` e scarica da sola GNOME 51, Rust e Node per la build. Nel sandbox config e database stanno in `~/.var/app/app.lettera.desktop/` (separati da quelli dell'installazione nativa); l'app può leggere il tema di Omarchy, usare il keyring e le notifiche, e salvare o allegare file da Scaricati, Documenti, Immagini e Scrivania.
+This needs `flatpak` with the Flathub remote; the recipe uses `org.flatpak.Builder` and fetches GNOME 51, Rust and Node for the build by itself. Inside the sandbox, config and database live in `~/.var/app/app.lettera.desktop/` (separate from a native install); the app can read the Omarchy theme, use the keyring and notifications, and save or attach files from Downloads, Documents, Pictures and Desktop.
 
-Per sviluppare: `just dev` (finestra con ricarica automatica), `just test`, `just lint`, `just fmt`.
+For development: `just dev` (window with live reload), `just test`, `just lint`, `just fmt`.
 
-## Primo avvio
+## First run
 
-Senza account, lettera mostra il form di aggiunta: scegli `imap` o `google`, inserisci i dati e premi invio. Per IMAP la password viene verificata con un login reale prima di salvare; per Google si apre il browser per il consenso. Lo stesso form si riapre con `:` → `aggiungi account`.
+With no accounts, lettera shows the add-account form: pick `imap` or `google`, fill in the fields and press enter. For IMAP, both the IMAP and the SMTP login are checked before anything is saved; for Google the browser opens for consent. The same form comes back with `:` → `add account`.
 
-## Configurazione
+## Configuration
 
-Il file è `~/.config/lettera/config.toml` (su macOS `~/Library/Application Support/lettera/config.toml`). Viene ricaricato appena lo salvi: aggiungere o togliere un blocco `[[accounts]]` avvia o ferma subito quell'account. `:` → `apri config` lo apre nell'editor di sistema.
+The file is `~/.config/lettera/config.toml` (on macOS `~/Library/Application Support/lettera/config.toml`). It is reloaded as soon as you save it: adding or removing an `[[accounts]]` block starts or stops that account right away. `:` → `open config` opens it in your editor (terminal editors such as nvim open in a terminal).
+
+The file is created with every option present as a commented placeholder: remove the `#` to turn one on. A typical file:
 
 ```toml
 theme = "auto"            # auto | omarchy | dark | light
-font = "JetBrains Mono"   # qualsiasi font monospace installato
-font_size = 13            # px dell'interfaccia; il corpo dei messaggi è +1
-sync_months = 48          # mesi di posta da tenere in sync (per data di arrivo); 0 = tutta
+font = "JetBrains Mono"   # any installed monospace font
+font_size = 13            # interface size in px; message bodies are 1px larger
+sync_months = 48          # months of mail kept in sync, by arrival date (0 = all of it)
 signature = """
 Simone Silvetti
 +39 333 1234567
-"""                       # firma per tutti gli account (facoltativa)
+"""
 
 [[accounts]]
-name = "Lavoro"           # nome mostrato e usato come mittente
+name = "Work"                      # shown in the app and used as sender name
 type = "imap"
-email = "nome@dominio.it"
-imap_host = "imap.dominio.it"
-imap_port = 993           # 993 = TLS implicito, altre porte = STARTTLS
-smtp_host = "smtp.dominio.it"
-smtp_port = 465           # 465 = TLS implicito, altre porte = STARTTLS
-username = "nome@dominio.it"   # facoltativo: di default è l'email
-# imap_tls = "starttls"   # solo per porte non standard: "implicit" o "starttls"
-# smtp_tls = "implicit"
-# sync_months = 12        # facoltativo: sostituisce quello generale per questo account
-# signature = "Ufficio"   # facoltativo: firma solo per questo account ("" = nessuna)
-# la password sta nel keyring di sistema, mai nel file
+email = "name@example.com"
+imap_host = "imap.example.com"
+imap_port = 993                    # 993 = implicit TLS, other ports = STARTTLS
+smtp_host = "smtp.example.com"
+smtp_port = 465                    # 465 = implicit TLS, other ports = STARTTLS
+# username = "name@example.com"    # if the login differs from the email
+# imap_tls = "starttls"            # implicit | starttls, for non-standard ports
+# smtp_tls = "starttls"
+# sync_months = 12                 # overrides the global value (0 = all mail)
+# signature = "Name · Work"        # overrides the global signature ("" = none)
+# the password lives in the system keyring, never in this file
 
 [[accounts]]
 name = "Gmail"
 type = "google"
-email = "nome@gmail.com"
+email = "name@gmail.com"
 client_id = "1234567890-abc.apps.googleusercontent.com"
 client_secret = "GOCSPX-…"
-# host e porte di Gmail sono già noti; il refresh token sta nel keyring
+# Gmail hosts and ports are built in; the refresh token lives in the keyring
 ```
 
-La firma viene messa in fondo a ogni messaggio nuovo, risposta e inoltro, dopo la riga `-- ` (il separatore standard che molti client riconoscono); il cursore parte sopra la firma, che resta modificabile o cancellabile nel singolo messaggio. Le stringhe su più righe vanno tra `"""`.
+Top-level options (`theme`, `font`, `font_size`, `sync_months`, `signature`) must come before the first `[[accounts]]` line: in TOML, everything after a table header belongs to that table.
 
-`sync_months` limita la sync ai messaggi arrivati negli ultimi N mesi, in tutte le cartelle: quelli più vecchi non vengono scaricati (nemmeno gli header) e restano solo sul server. Con il passare dei mesi la finestra avanza e i messaggi che ne escono spariscono dal database locale, non dal server. Se cambi il valore, l'account si risincronizza subito: allargando la finestra arrivano anche i messaggi più vecchi.
+The **signature** is added to every new message, reply and forward, after a `-- ` line (the standard separator many clients recognise); the cursor starts above it, and it can be edited or removed in each message. Multi-line strings go between `"""`.
 
-I segreti stanno nel keyring con la chiave `lettera/<email>` (servizio `lettera`, utente `<email>`). Il database locale è `~/.local/share/lettera/lettera.db`.
+**`sync_months`** limits sync to messages that arrived in the last N months, in every folder: older ones are never downloaded (not even their headers) and stay on the server only. As months go by the window moves forward and messages that fall out of it disappear from the local database, never from the server. Changing the value resyncs the account right away; widening the window brings older mail in.
 
-Variabili d'ambiente utili:
+Secrets are stored in the keyring under `lettera/<email>` (service `lettera`, user `<email>`). The local database is `~/.local/share/lettera/lettera.db`.
 
-- `LETTERA_HOME=/una/cartella` — config e database in una sola cartella (per provare senza toccare la tua configurazione);
-- `LETTERA_CA_FILE=/percorso/ca.pem` — certificati CA aggiuntivi (server con CA privata o self-signed);
-- `RUST_LOG=lettera_core=debug` — log più dettagliati (mai password né token).
+Useful environment variables:
 
-## Gmail senza OAuth: password per le app
+- `LETTERA_HOME=/some/dir` — config and database in a single directory (to try things without touching your setup);
+- `LETTERA_CA_FILE=/path/ca.pem` — extra CA certificates (servers with a private or self-signed CA);
+- `RUST_LOG=lettera_core=debug` — more detailed logs (never passwords or tokens).
 
-Gmail rifiuta la password normale dell'account via IMAP (`Application-specific password required`). L'alternativa più rapida al client OAuth:
+## Gmail without OAuth: app passwords
 
-1. attiva la verifica in due passaggi sull'account Google;
-2. crea una password per le app su <https://myaccount.google.com/apppasswords>;
-3. aggiungi l'account come `imap` con `imap.gmail.com` porta 993 e `smtp.gmail.com` porta 465, usando quella password di 16 lettere (gli spazi non contano).
+Gmail refuses the normal account password over IMAP (`Application-specific password required`). The quickest alternative to an OAuth client:
 
-Con `imap_host = "imap.gmail.com"` lettera applica comunque la semantica di Gmail (archivio che toglie l'etichetta, niente copia doppia in *Posta inviata*), come per `type = "google"`.
+1. turn on 2-Step Verification on the Google account;
+2. create an app password at <https://myaccount.google.com/apppasswords>;
+3. add the account as `imap` with `imap.gmail.com` port 993 and `smtp.gmail.com` port 465 (or 587 with STARTTLS), using that 16-letter password (spaces do not matter).
 
-## Gmail: creare il client OAuth
+With `imap_host = "imap.gmail.com"` lettera still applies Gmail semantics (archiving removes the label, no duplicate copy in *Sent Mail*), just as with `type = "google"`.
 
-lettera accede a Gmail con OAuth2 usando un client che crei tu nel tuo progetto Google Cloud. È gratuito e serve una volta sola.
+## Gmail: creating the OAuth client
 
-1. Apri <https://console.cloud.google.com/> e crea un progetto (menu in alto → *Nuovo progetto*, per esempio “lettera”).
-2. In *API e servizi → Libreria* cerca **Gmail API** e premi *Abilita*.
-3. Vai in *Google Auth Platform* (o *API e servizi → Schermata consenso OAuth*) e premi *Inizia*:
-   - nome dell'app: `lettera`; email di assistenza: la tua;
-   - pubblico: **Esterno**;
-   - contatto: la tua email; accetta e crea.
-4. In *Pubblico* (o *Utenti di prova*) aggiungi il tuo indirizzo Gmail come **utente di prova**. Lascia l'app in modalità **Testing**: per uso personale non serve alcuna verifica.
-5. In *Accesso ai dati* (o *Ambiti*) premi *Aggiungi o rimuovi ambiti* e aggiungi a mano `https://mail.google.com/`.
-6. In *Client* premi *Crea client*, tipo di applicazione **App desktop**, nome `lettera`. Copia **ID client** e **client secret**.
-7. In lettera: `aggiungi account` → `google` → nome, email, client id, secret → `⏎ accedi con google`. Si apre il browser: scegli l'account, accetta l'avviso “app non verificata” (è la tua) e il consenso. Torna in lettera: la sincronizzazione parte da sola.
+lettera signs in to Gmail with OAuth2 using a client you create in your own Google Cloud project. It is free and done once.
 
-Note:
+1. Open <https://console.cloud.google.com/> and create a project (top menu → *New project*, e.g. “lettera”).
+2. In *APIs & Services → Library* search for **Gmail API** and press *Enable*.
+3. Go to *Google Auth Platform* (or *APIs & Services → OAuth consent screen*) and press *Get started*:
+   - app name: `lettera`; support email: yours;
+   - audience: **External**;
+   - contact: your email; accept and create.
+4. Under *Audience* (or *Test users*) add your Gmail address as a **test user**. Leave the app in **Testing** mode: personal use needs no verification.
+5. Under *Data access* (or *Scopes*) press *Add or remove scopes* and add `https://mail.google.com/` by hand.
+6. Under *Clients* press *Create client*, application type **Desktop app**, name `lettera`. Copy the **Client ID** and **client secret**.
+7. In lettera: `add account` → `google` → name, email, client id, secret → `⏎ sign in with google`. The browser opens: pick the account, accept the “unverified app” warning (it is yours) and the consent screen. Back in lettera, sync starts on its own.
 
-- con l'app in modalità *Testing* Google fa scadere il refresh token dopo **7 giorni**: quando succede la status line mostra un errore di accesso; ripeti `aggiungi account` con la stessa email per riautorizzare (l'account non viene duplicato). Per evitarlo, in *Pubblico* premi *Pubblica app*: resta non verificata (vedrai l'avviso al login) ma il token non scade;
-- per account Google Workspace l'amministratore deve consentire l'accesso IMAP e le app OAuth di terze parti;
-- archiviare su Gmail toglie il messaggio dalla INBOX e lo lascia in *Tutti i messaggi*; eliminare lo sposta nel *Cestino*. Funziona con le impostazioni IMAP predefinite di Gmail (“quando un messaggio viene eliminato dall'ultima cartella IMAP visibile: archivialo”).
+Notes:
 
-## Scorciatoie
+- with the app in *Testing* mode Google expires the refresh token after **7 days**: when that happens the status line shows a sign-in error; run `add account` again with the same email to re-authorise (the account is not duplicated). To avoid it, press *Publish app* under *Audience*: it stays unverified (you will see the warning when signing in) but the token no longer expires;
+- for Google Workspace accounts the administrator must allow IMAP access and third-party OAuth apps;
+- archiving on Gmail removes the message from INBOX and leaves it in *All Mail*; deleting moves it to *Trash*. This works with Gmail's default IMAP settings (“when a message is deleted from the last visible IMAP folder: archive the message”).
 
-| tasto | azione |
+## Shortcuts
+
+| key | action |
 |---|---|
-| `j` / `k`, `↓` / `↑` | naviga nella lista (o tra i messaggi del thread aperto) |
-| `⏎` | apri il thread · espandi/comprimi il messaggio |
-| `esc` | chiudi / indietro / annulla la ricerca |
-| `e` | archivia |
-| `#` | elimina |
-| `u` | segna come non letto |
-| `s` | aggiungi/togli flag |
-| `r` / `a` / `f` | rispondi / rispondi a tutti / inoltra |
-| `c` | scrivi |
-| `/` | cerca (la lista si filtra mentre scrivi, ricerca full-text) |
-| `:` | palette dei comandi |
-| `v` | originale HTML ↔ modalità lettura |
-| `o` | salva l'allegato del messaggio |
-| `g i` `g a` `g s` `g t` `g d` | vai a inbox, archivio, inviati, cestino, bozze |
-| `g g` / `G` | inizio / fine lista |
-| `n` / `p` | thread successivo / precedente (dentro un thread aperto) |
-| `⌃1` … `⌃9` | cambia account |
-| `R` | sincronizza ora |
+| `j` / `k`, `↓` / `↑` | move through the list (or the messages of the open thread) |
+| `⏎` | open the thread · expand/collapse the message |
+| `esc` | close / back / clear the search |
+| `e` | archive |
+| `#` | delete |
+| `u` | mark as unread |
+| `s` | toggle flag |
+| `r` / `a` / `f` | reply / reply all / forward |
+| `c` | compose |
+| `/` | search (the list filters as you type, full-text search) |
+| `:` | command palette |
+| `v` | original HTML ↔ reading mode |
+| `o` | save the message's attachment |
+| `g i` `g a` `g s` `g t` `g d` | go to inbox, archive, sent, trash, drafts |
+| `g g` / `G` | top / end of list |
+| `n` / `p` | next / previous thread (inside an open thread) |
+| `⌃1` … `⌃9` | switch account |
+| `R` | sync now |
 
-In composizione: `⌃⏎` invia · `⌃a` allega (clic sul nome di un allegato per toglierlo) · `⌃b` mostra il campo ccn · `⌃q` mostra la citazione · `esc` chiude (con modifiche non salvate chiede un secondo `esc` e scarta la bozza). Le bozze si salvano da sole ogni 5 secondi e si riprendono ripremendo `c` (o `r`/`a`/`f` sullo stesso messaggio).
+`⌃` is the Ctrl key (Cmd on macOS). While composing: `⌃⏎` send · `⌃a` attach (click an attachment's name to remove it) · `⌃b` show the bcc field · `⌃q` show the quote · `esc` close (with unsaved changes it asks for a second `esc` and discards the draft). Drafts save themselves every 5 seconds and come back when you press `c` again (or `r`/`a`/`f` on the same message).
 
-Nessuna scorciatoia scatta mentre scrivi in un campo, tranne `esc` e le combinazioni con `⌃`. Tutti i comandi, anche quelli senza tasto (`sposta in…`, `vai a cartella…`, `cambia account…`, `apri config`, `abilita immagini`, `info`…), sono nella palette.
+No shortcut fires while you type in a field, except `esc` and `⌃` combinations. Every command, including those without a key (`move to…`, `go to folder…`, `switch account…`, `open config`, `enable images`, `info`…), is in the palette.
 
-Tutti i suggerimenti con un tasto (la barra in basso, i comandi sotto un messaggio, gli allegati) sono anche cliccabili: il clic fa la stessa cosa della scorciatoia. Quelli non disponibili in quel momento sono attenuati.
+Every key hint (the bottom bar, the actions under a message, the compose screen) is also a button: clicking it does the same as the shortcut. Hints that are not available right now are dimmed.
 
-## Il tema di Omarchy
+## The Omarchy theme
 
-Con `theme = "auto"` (o `"omarchy"`) lettera legge `~/.local/state/omarchy/current/theme/colors.toml` (o `~/.config/omarchy/current/theme/colors.toml`) e ricava otto colori: `background`, `foreground`, `accent`, `red`, `green` dal file; `muted` dalla chiave `muted`/`comment`/`dim` se c'è, altrimenti un mix 55% testo/sfondo; bordi e superfici come mix al 12% e al 6%. Osserva la cartella del tema: quando cambi tema in Omarchy l'app si ricolora senza riavvio. Un file mancante o rotto non blocca nulla: lettera usa la palette scura o chiara incorporata seguendo il tema del sistema. `theme = "dark"` o `"light"` forzano le palette incorporate.
+With `theme = "auto"` (or `"omarchy"`) lettera reads `~/.local/state/omarchy/current/theme/colors.toml` (or `~/.config/omarchy/current/theme/colors.toml`) and derives eight colors: `background`, `foreground`, `accent`, `red`, `green` from the file; `muted` from a `muted`/`comment`/`dim` key if present, otherwise a 55% text/background mix; borders and surfaces as 12% and 6% mixes. It watches the theme directory: when you switch theme in Omarchy the app recolors without a restart. A missing or broken file blocks nothing: lettera uses its built-in dark or light palette following the system preference. `theme = "dark"` or `"light"` force the built-in palettes.
 
-## Come funziona
+## How it works
 
-- `crates/core` è il motore, senza dipendenze da Tauri: config, keyring, IMAP (`async-imap`), SMTP (`lettre`), OAuth, parsing (`mail-parser`), SQLite con FTS5, sync, threading, tema. Si testa da solo con `cargo test -p lettera-core`.
-- `src-tauri` è un adattatore sottile: comandi Tauri ed eventi.
-- `src/` è l'interfaccia Svelte 5, senza logica di dominio: chiede dati, disegna, manda comandi.
+- `crates/core` is the engine, with no Tauri dependency: config, keyring, IMAP (`async-imap`), SMTP (`lettre`), OAuth, parsing (`mail-parser`), SQLite with FTS5, sync, threading, theme. It is tested on its own with `cargo test -p lettera-core`.
+- `src-tauri` is a thin adapter: Tauri commands and events.
+- `src/` is the Svelte 5 interface, with no domain logic: it asks for data, draws, sends commands.
 
-Ogni account usa tre connessioni IMAP: una per la sincronizzazione in background (ogni 5 minuti e su richiesta), una per le azioni e i corpi su richiesta, una in IDLE sulla INBOX con riconnessione automatica. Le azioni sono ottimistiche: la lista cambia subito, il server si aggiorna subito dopo; se qualcosa va storto la cartella viene risincronizzata.
+Each account uses three IMAP connections: one for background sync (every 5 minutes and on demand), one for actions and on-demand bodies, one in IDLE on INBOX with automatic reconnection. Actions are optimistic: the list changes at once and the server right after; if something goes wrong the folder is resynced.
 
-Test: `just test` esegue test unitari, parsing su 14 fixture `.eml`, threading, sync con un server IMAP finto (anche il cambio di `UIDVALIDITY`) e i test del frontend. `just test-integration` avvia Dovecot e Mailpit in Docker (`docker-compose.test.yml`) e prova l'intero motore contro server veri: login, sync, IDLE, risposta con `In-Reply-To`/`References`, copia in Inviati, archivio, cestino.
+Tests: `just test` runs unit tests, parsing of 14 `.eml` fixtures, threading, sync against a fake IMAP server (including `UIDVALIDITY` changes) and the frontend tests. `just test-integration` starts Dovecot and Mailpit in Docker (`docker-compose.test.yml`) and runs the whole engine against real servers: login, sync, IDLE, reply with `In-Reply-To`/`References` and a PDF attachment, copy to Sent, archive, trash, STARTTLS fallback.
 
-## Limiti noti
+## Known limits
 
-- Solo IMAP/SMTP e Gmail; niente JMAP, Exchange/EWS, POP3, PGP, calendario, contatti, filtri.
-- Si scrive solo in testo semplice; l'inoltro cita il testo dell'originale ma non ne riporta gli allegati.
-- Le bozze restano locali (non vengono salvate nella cartella Bozze del server).
-- La sync copre tutte le cartelle, incluso *Tutti i messaggi* su Gmail, entro la finestra di `sync_months` (48 mesi di default); la posta più vecchia non è consultabile dall'app. Nessun uso di CONDSTORE/QRESYNC.
-- La ricerca vale per la cartella corrente e trova nel testo solo i messaggi di cui è già stato scaricato il corpo (prefetch automatico degli ultimi 30 giorni di INBOX).
-- I nomi di cartella non ASCII in UTF-7 modificato vengono mostrati così come arrivano.
-- Le immagini inline `cid:` dell'originale HTML non vengono mostrate.
-- Scorciatoie non configurabili; un'unica finestra.
-- Testato su Linux (Omarchy/Hyprland); su macOS compila senza codice specifico ma non è stato provato.
+- IMAP/SMTP and Gmail only; no JMAP, Exchange/EWS, POP3, PGP, calendar, contacts, filters.
+- Plain-text writing only; forwarding quotes the original text but does not carry its attachments.
+- Drafts stay local (they are not saved to the server's Drafts folder).
+- Sync covers every folder, including *All Mail* on Gmail, within the `sync_months` window (48 months by default); older mail cannot be reached from the app. No CONDSTORE/QRESYNC.
+- Search works on the current folder and finds body text only for messages whose body has been downloaded (automatic prefetch of the last 30 days of INBOX).
+- Non-ASCII folder names in modified UTF-7 are shown as they arrive.
+- Inline `cid:` images of the original HTML are not shown.
+- Shortcuts are not configurable; a single window.
+- Tested on Linux (Omarchy/Hyprland); on macOS it builds without platform-specific code but has not been tried.
 
-## Licenza
+## License
 
-MIT, vedi [LICENSE](LICENSE). Il font Special Elite in `assets/fonts/` è distribuito con la sua licenza Apache 2.0.
+MIT, see [LICENSE](LICENSE). The Special Elite font in `assets/fonts/` ships with its own Apache 2.0 license.

@@ -121,12 +121,12 @@ pub fn folder_role(f: &RemoteFolder) -> Option<&'static str> {
 /// Turns a failed LOGIN into a message the user can act on.
 pub fn login_error(server: &str) -> String {
     if server.contains("Application-specific password required") || server.contains("185833") {
-        return "Gmail non accetta la password dell'account via IMAP: crea una password per le app \
-                su https://myaccount.google.com/apppasswords (serve la verifica in due passaggi) \
-                e usala qui, oppure aggiungi l'account come tipo google (OAuth)."
+        return "Gmail does not accept the account password over IMAP: create an app password \
+                at https://myaccount.google.com/apppasswords (2-Step Verification is required) \
+                and use it here, or add the account with type google (OAuth)."
             .into();
     }
-    format!("login IMAP fallito: {server}")
+    format!("IMAP login failed: {server}")
 }
 
 pub fn is_selectable(f: &RemoteFolder) -> bool {
@@ -253,7 +253,7 @@ pub fn tls_connector() -> TlsConnector {
 
 async fn tls(tls: &TlsConnector, stream: TcpStream, host: &str) -> Result<TlsStream<TcpStream>> {
     let name = rustls::pki_types::ServerName::try_from(host.to_string())
-        .map_err(|e| Error::Imap(format!("host non valido {host}: {e}")))?;
+        .map_err(|e| Error::Imap(format!("invalid host {host}: {e}")))?;
     Ok(tls.connect(name, stream).await?)
 }
 
@@ -276,11 +276,11 @@ pub async fn connect_with(
     .await
     .map_err(|_| {
         Error::Imap(format!(
-            "nessuna risposta da {}:{} ({}): controlla porta e modalità tls",
+            "no answer from {}:{} ({}): check the port and tls mode",
             ep.host,
             ep.port,
             if ep.implicit_tls {
-                "tls implicito"
+                "implicit tls"
             } else {
                 "starttls"
             }
@@ -297,7 +297,7 @@ async fn open(ep: &Endpoint, creds: &Credentials, connector: &TlsConnector) -> R
         plain
             .read_response()
             .await?
-            .ok_or_else(|| Error::Imap("nessun saluto dal server".into()))?;
+            .ok_or_else(|| Error::Imap("no greeting from the server".into()))?;
         plain.run_command_and_check_ok("STARTTLS", None).await?;
         tls(connector, plain.into_inner(), &ep.host).await?
     };
@@ -306,7 +306,7 @@ async fn open(ep: &Endpoint, creds: &Credentials, connector: &TlsConnector) -> R
         client
             .read_response()
             .await?
-            .ok_or_else(|| Error::Imap("nessun saluto dal server".into()))?;
+            .ok_or_else(|| Error::Imap("no greeting from the server".into()))?;
     }
     let session = match creds {
         Credentials::Password { username, password } => client
@@ -322,7 +322,7 @@ async fn open(ep: &Endpoint, creds: &Credentials, connector: &TlsConnector) -> R
                 },
             )
             .await
-            .map_err(|(e, _)| Error::Auth(format!("XOAUTH2 IMAP fallito: {e}")))?,
+            .map_err(|(e, _)| Error::Auth(format!("IMAP XOAUTH2 failed: {e}")))?,
     };
     RealImap::new(session).await
 }
@@ -501,7 +501,7 @@ mod tests {
     fn gmail_app_password_hint() {
         let raw = "no response: code: Some(Alert), info: Some(\"Application-specific password required: https://support.google.com/accounts/answer/185833 (Failure)\")";
         assert!(login_error(raw).contains("apppasswords"));
-        assert!(login_error("NO [AUTHENTICATIONFAILED]").starts_with("login IMAP fallito"));
+        assert!(login_error("NO [AUTHENTICATIONFAILED]").starts_with("IMAP login failed"));
     }
 
     fn f(name: &str, attrs: &[&str]) -> RemoteFolder {

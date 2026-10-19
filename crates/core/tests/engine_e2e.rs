@@ -120,9 +120,14 @@ async fn engine_end_to_end() {
     engine.add_account(account).await.expect("add account");
     let cfg = std::fs::read_to_string(&paths.config_file).unwrap();
     assert!(cfg.contains(&email) && !cfg.contains("\"pass\""), "{cfg}");
+    let saved = lettera_core::config::parse(&cfg).unwrap();
+    assert_eq!(
+        saved.accounts[0].smtp_tls, None,
+        "the mode that works is saved"
+    );
     assert!(
-        !cfg.contains("smtp_tls"),
-        "the mode that works is saved: {cfg}"
+        cfg.contains("# signature = "),
+        "placeholders for unset options"
     );
     assert_eq!(engine.list_accounts().len(), 1);
 

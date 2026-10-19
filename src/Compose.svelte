@@ -16,10 +16,10 @@
   let bodyEl = $state<HTMLTextAreaElement>();
 
   const title = $derived.by(() => {
-    if (d.kind === 'new') return 'nuovo messaggio';
-    if (d.kind === 'forward') return `inoltro: ${d.subject.replace(/^fwd:\s*/i, '')}`;
+    if (d.kind === 'new') return 'new message';
+    if (d.kind === 'forward') return `forward: ${d.subject.replace(/^fwd:\s*/i, '')}`;
     const to = d.to.split(',')[0]?.replace(/<.*>/, '').trim();
-    return `risposta a ${to || '…'}`;
+    return `reply to ${to || '…'}`;
   });
 
   onMount(() => {
@@ -73,13 +73,13 @@
     lookup(field, e.currentTarget.value);
   }
 
-  const fields = $derived<[Field, string][]>(app.draftBcc ? [['to', 'a'], ['cc', 'cc'], ['bcc', 'ccn']] : [['to', 'a'], ['cc', 'cc']]);
+  const fields = $derived<[Field, string][]>(app.draftBcc ? [['to', 'to'], ['cc', 'cc'], ['bcc', 'bcc']] : [['to', 'to'], ['cc', 'cc']]);
 </script>
 
 <div class="compose">
   <header>
     <span>{title}</span>
-    <span class="muted">{app.draftSavedAt ? `bozza salvata ${clock(app.draftSavedAt)}` : ''}</span>
+    <span class="muted">{app.draftSavedAt ? `draft saved ${clock(app.draftSavedAt)}` : ''}</span>
   </header>
 
   <div class="scroll">
@@ -116,7 +116,7 @@
       {/if}
     {/each}
     <label class="field">
-      <span class="muted">oggetto</span>
+      <span class="muted">subject</span>
       <input bind:value={d.subject} oninput={touchDraft} />
     </label>
 
@@ -125,28 +125,28 @@
       bind:value={d.body}
       oninput={touchDraft}
       spellcheck="true"
-      placeholder="scrivi…"
+      placeholder="write…"
     ></textarea>
 
     {#if d.quote}
       {#if app.draftQuote}
         <pre class="quote muted selectable">{d.quote}</pre>
       {:else}
-        <button class="hint quote-hint" onclick={() => runCommand('quote')}><b>⌃q</b> mostra citazione</button>
+        <button class="hint quote-hint" onclick={() => runCommand('quote')}><b>⌃q</b> show quote</button>
       {/if}
     {/if}
 
     <div class="files">
-      <span class="muted">allegati</span>
+      <span class="muted">attachments</span>
       {#if d.attachments.length === 0}
-        <button class="hint" onclick={() => runCommand('attach')}>nessuno · <b>⌃a</b> per aggiungere</button>
+        <button class="hint" onclick={() => runCommand('attach')}>none · <b>⌃a</b> to add</button>
       {:else}
         {#each d.attachments as path, i (path + i)}
-          <button class="file" onclick={() => removeAttachment(i)} title="clic per rimuovere">
+          <button class="file" onclick={() => removeAttachment(i)} title="click to remove">
             {fileName(path)}
           </button>
         {/each}
-        <button class="hint" onclick={() => runCommand('attach')}><b>⌃a</b> aggiungi</button>
+        <button class="hint" onclick={() => runCommand('attach')}><b>⌃a</b> add</button>
       {/if}
     </div>
   </div>
