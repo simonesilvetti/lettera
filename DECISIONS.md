@@ -46,6 +46,7 @@ Scelte non ovvie, una riga ciascuna. Quando una scelta era ambigua è stata pres
 - Archivio IMAP generico: cartella con ruolo `archive`, oppure `Archive` creata al primo uso.
 - Eliminare: sposta nel cestino (`Trash` creato se manca); dal cestino la cancellazione è definitiva.
 - Gmail: archiviare = `\Deleted` + `UID EXPUNGE` nella cartella; da Spam o Cestino invece sposta in *Tutti i messaggi*, perché lì l'expunge cancellerebbe per sempre.
+- Semantica Gmail anche per account `imap` su `imap.gmail.com` (password per le app); l'errore "Application-specific password required" diventa un messaggio con le istruzioni.
 - Gmail: dopo l'invio non si fa APPEND (lo fa Gmail) ma si risincronizza *Posta inviata*.
 
 ## Dati e threading

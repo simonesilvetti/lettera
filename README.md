@@ -116,6 +116,16 @@ Variabili d'ambiente utili:
 - `LETTERA_CA_FILE=/percorso/ca.pem` — certificati CA aggiuntivi (server con CA privata o self-signed);
 - `RUST_LOG=lettera_core=debug` — log più dettagliati (mai password né token).
 
+## Gmail senza OAuth: password per le app
+
+Gmail rifiuta la password normale dell'account via IMAP (`Application-specific password required`). L'alternativa più rapida al client OAuth:
+
+1. attiva la verifica in due passaggi sull'account Google;
+2. crea una password per le app su <https://myaccount.google.com/apppasswords>;
+3. aggiungi l'account come `imap` con `imap.gmail.com` porta 993 e `smtp.gmail.com` porta 465, usando quella password di 16 lettere (gli spazi non contano).
+
+Con `imap_host = "imap.gmail.com"` lettera applica comunque la semantica di Gmail (archivio che toglie l'etichetta, niente copia doppia in *Posta inviata*), come per `type = "google"`.
+
 ## Gmail: creare il client OAuth
 
 lettera accede a Gmail con OAuth2 usando un client che crei tu nel tuo progetto Google Cloud. È gratuito e serve una volta sola.

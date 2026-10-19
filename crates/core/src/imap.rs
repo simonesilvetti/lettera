@@ -118,6 +118,17 @@ pub fn folder_role(f: &RemoteFolder) -> Option<&'static str> {
     Some(role)
 }
 
+/// Turns a failed LOGIN into a message the user can act on.
+pub fn login_error(server: &str) -> String {
+    if server.contains("Application-specific password required") || server.contains("185833") {
+        return "Gmail non accetta la password dell'account via IMAP: crea una password per le app \
+                su https://myaccount.google.com/apppasswords (serve la verifica in due passaggi) \
+                e usala qui, oppure aggiungi l'account come tipo google (OAuth)."
+            .into();
+    }
+    format!("login IMAP fallito: {server}")
+}
+
 pub fn is_selectable(f: &RemoteFolder) -> bool {
     !f.attributes
         .iter()
@@ -301,7 +312,7 @@ async fn open(ep: &Endpoint, creds: &Credentials, connector: &TlsConnector) -> R
         Credentials::Password { username, password } => client
             .login(username, password)
             .await
-            .map_err(|(e, _)| Error::Auth(format!("login IMAP fallito: {e}")))?,
+            .map_err(|(e, _)| Error::Auth(login_error(&e.to_string())))?,
         Credentials::XOAuth2 { user, access_token } => client
             .authenticate(
                 "XOAUTH2",
@@ -485,6 +496,13 @@ impl ImapClient for RealImap {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gmail_app_password_hint() {
+        let raw = "no response: code: Some(Alert), info: Some(\"Application-specific password required: https://support.google.com/accounts/answer/185833 (Failure)\")";
+        assert!(login_error(raw).contains("apppasswords"));
+        assert!(login_error("NO [AUTHENTICATIONFAILED]").starts_with("login IMAP fallito"));
+    }
 
     fn f(name: &str, attrs: &[&str]) -> RemoteFolder {
         RemoteFolder {

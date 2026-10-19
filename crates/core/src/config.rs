@@ -126,6 +126,16 @@ impl AccountConfig {
         self.kind == AccountKind::Google
     }
 
+    /// Gmail's label semantics apply: a google account, or plain IMAP on Gmail
+    /// (app password).
+    pub fn gmail_semantics(&self) -> bool {
+        self.is_google()
+            || self.imap_host.as_deref().is_some_and(|h| {
+                h.eq_ignore_ascii_case("imap.gmail.com")
+                    || h.eq_ignore_ascii_case("imap.googlemail.com")
+            })
+    }
+
     pub fn username(&self) -> &str {
         self.username.as_deref().unwrap_or(&self.email)
     }
@@ -469,6 +479,13 @@ client_secret = "secret"
         assert_eq!(c.theme, "auto");
         assert_eq!(c.accounts.len(), 1);
         assert_eq!(c.sync_months(&c.accounts[0]), Some(48));
+    }
+
+    #[test]
+    fn gmail_over_plain_imap() {
+        let c = parse("[[accounts]]\nname = \"g\"\ntype = \"imap\"\nemail = \"a@gmail.com\"\nimap_host = \"IMAP.gmail.com\"\nsmtp_host = \"smtp.gmail.com\"\n[[accounts]]\nname = \"o\"\ntype = \"imap\"\nemail = \"a@b.it\"\nimap_host = \"imap.b.it\"\nsmtp_host = \"smtp.b.it\"\n").unwrap();
+        assert!(c.accounts[0].gmail_semantics() && !c.accounts[0].is_google());
+        assert!(!c.accounts[1].gmail_semantics());
     }
 
     #[test]

@@ -1022,7 +1022,7 @@ impl Engine {
         for (folder, email, rows) in self.by_folder(ids)? {
             let acc = self.inner.account(&email)?;
             let role = folder.role.clone().unwrap_or_default();
-            if acc.is_google() {
+            if acc.gmail_semantics() {
                 match role.as_str() {
                     "all" => continue,
                     "trash" | "junk" => {
@@ -1059,7 +1059,7 @@ impl Engine {
             let acc = self.inner.account(&email)?;
             let (name, create) = match self.inner.db.folder_by_role(folder.account_id, "trash")? {
                 Some(f) => (f.name, false),
-                None if acc.is_google() => ("[Gmail]/Trash".to_string(), false),
+                None if acc.gmail_semantics() => ("[Gmail]/Trash".to_string(), false),
                 None => ("Trash".to_string(), true),
             };
             self.take_away(folder, &email, &rows, Some((name, create)))?;
@@ -1225,7 +1225,7 @@ impl Engine {
 
         let account_id = self.inner.db.account_id(&acc.email)?;
         let sent = self.inner.db.folder_by_role(account_id, "sent")?;
-        if acc.is_google() {
+        if acc.gmail_semantics() {
             // Gmail files sent mail by itself.
             if let Some(f) = sent {
                 self.inner.request_sync(
