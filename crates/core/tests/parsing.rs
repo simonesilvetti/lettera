@@ -2,7 +2,9 @@ mod common;
 
 use common::fixture;
 use lettera_core::model::BlockKind;
-use lettera_core::parse::{extract_attachment, parse_body, parse_envelope, parse_recipients};
+use lettera_core::parse::{
+    extract_attachment, invalid_recipients, parse_body, parse_envelope, parse_recipients,
+};
 use lettera_core::reading;
 
 #[test]
@@ -159,4 +161,11 @@ fn recipients_field() {
     let addrs: Vec<_> = r.iter().map(|a| a.addr.as_str()).collect();
     assert_eq!(addrs, ["a@b.it", "anna@x.it", "m@x.it"]);
     assert_eq!(r[1].name, "Rossi, Anna");
+}
+
+#[test]
+fn entries_that_are_not_addresses_are_reported() {
+    let f = "a@b.it, \"Rossi, Anna\" <anna@x.it>; Marco <m@x.it>,, nonvalido, mario(at)x.it";
+    assert_eq!(invalid_recipients(f), ["nonvalido", "mario(at)x.it"]);
+    assert!(invalid_recipients("a@b.it, ").is_empty());
 }

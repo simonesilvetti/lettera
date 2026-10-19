@@ -34,6 +34,8 @@ const PREFETCH_LIMIT: i64 = 150;
 /// A connection unused for this long is pinged before it is trusted again.
 /// Shorter pauses are covered by TCP keepalive and the user timeout (see
 /// `imap::detect_dead_peer`); the ping costs a round trip (~200 ms on Gmail).
+/// How long the contact list for autocompletion is reused.
+const CONTACTS_TTL: Duration = Duration::from_secs(10 * 60);
 /// An idle action connection is pinged this often (Gmail drops idle sessions).
 const KEEP_WARM: Duration = Duration::from_secs(4 * 60);
 /// Threads at the top of an opened folder whose bodies are fetched ahead.
@@ -165,6 +167,8 @@ struct Inner {
     workers: Mutex<HashMap<String, Worker>>,
     tokens: tokio::sync::Mutex<HashMap<String, AccessToken>>,
     images: Mutex<HashSet<i64>>,
+    /// Contacts for autocompletion and when they were read (see `Db::contacts`).
+    contacts: Mutex<Option<(Instant, Vec<Addr>)>>,
     /// Message ids whose body is queued or being downloaded.
     fetching: Mutex<HashSet<i64>>,
     /// (folder id, uid) of messages an action is moving away right now.
@@ -960,6 +964,7 @@ impl Engine {
             tokens: tokio::sync::Mutex::new(HashMap::new()),
             images: Mutex::new(HashSet::new()),
             fetching: Mutex::new(HashSet::new()),
+            contacts: Mutex::new(None),
             pending: Mutex::new(HashSet::new()),
             watcher: Mutex::new(None),
         });
@@ -1435,7 +1440,36 @@ impl Engine {
     }
 
     pub fn suggest_contacts(&self, q: &str) -> Result<Vec<Addr>> {
-        self.inner.db.suggest_contacts(q, 8)
+        let q = q.trim().to_lowercase();
+        if q.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut cache = lock(&self.inner.contacts);
+        if cache
+            .as_ref()
+            .is_none_or(|(at, _)| at.elapsed() > CONTACTS_TTL)
+        {
+            *cache = Some((Instant::now(), self.inner.db.contacts()?));
+        }
+        let mine: Vec<String> = self
+            .config()
+            .accounts
+            .iter()
+            .map(|a| a.email.to_lowercase())
+            .collect();
+        Ok(cache
+            .as_ref()
+            .map(|(_, all)| {
+                all.iter()
+                    .filter(|a| !mine.contains(&a.addr.to_lowercase()))
+                    .filter(|a| {
+                        a.addr.to_lowercase().contains(&q) || a.name.to_lowercase().contains(&q)
+                    })
+                    .take(8)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default())
     }
 
     pub fn list_attachments(&self, id: i64) -> Result<Vec<AttachmentInfo>> {
@@ -1791,6 +1825,16 @@ impl Engine {
 
     pub async fn send(&self, d: Draft) -> Result<()> {
         let acc = self.inner.account(&d.account)?;
+        let invalid: Vec<String> = [&d.to, &d.cc, &d.bcc]
+            .into_iter()
+            .flat_map(|f| parse::invalid_recipients(f))
+            .collect();
+        if !invalid.is_empty() {
+            return Err(Error::Smtp(format!(
+                "not an email address: {}",
+                invalid.join(", ")
+            )));
+        }
         let out = self
             .outgoing(&acc, &d, smtp::new_message_id(&acc.email))
             .await?;

@@ -503,6 +503,13 @@ impl Db {
             None => "folder_id = ?1 AND ?2 IS NULL",
         };
         let c = self.lock();
+        let role: Option<String> = c
+            .query_row("SELECT role FROM folders WHERE id = ?1", [folder_id], |r| {
+                r.get(0)
+            })
+            .optional()?
+            .flatten();
+        let outgoing = matches!(role.as_deref(), Some("sent") | Some("drafts"));
         let (today, yesterday, week) = day_boundaries(now);
         // one pass over the folder for the counts and the date groups
         let (total, unread, buckets) = c.query_row(
@@ -545,7 +552,8 @@ impl Db {
                     MAX(m.has_attachments), group_concat(m.id),
                     MAX(EXISTS(SELECT 1 FROM json_each(m.to_addrs) j, accounts a
                                WHERE a.id = m.account_id
-                                 AND lower(json_extract(j.value, '$.addr')) = lower(a.email)))
+                                 AND lower(json_extract(j.value, '$.addr')) = lower(a.email))),
+                    (SELECT to_addrs FROM messages x WHERE {fx} AND x.thread_id = t.thread_id ORDER BY x.date DESC, x.id DESC LIMIT 1)
              FROM t JOIN messages m ON m.thread_id = t.thread_id AND {fm}
              GROUP BY t.thread_id ORDER BY t.d DESC, t.thread_id",
             fx = filter.replace("folder_id", "x.folder_id").replace(" id IN", " x.id IN"),
@@ -556,14 +564,21 @@ impl Db {
                 let name: Option<String> = r.get(2)?;
                 let addr: Option<String> = r.get(3)?;
                 let ids: String = r.get(9)?;
-                Ok(ThreadSummary {
-                    thread_id: r.get(0)?,
-                    date: r.get(1)?,
-                    from: Addr {
+                // in Sent and Drafts the sender is always oneself: show whom
+                // the newest message goes to instead
+                let to = addrs_of(r.get(11)?);
+                let from = match to.first() {
+                    Some(first) if outgoing => format!("to {}", first.display()),
+                    _ => Addr {
                         name: name.unwrap_or_default(),
                         addr: addr.unwrap_or_default(),
                     }
                     .display(),
+                };
+                Ok(ThreadSummary {
+                    thread_id: r.get(0)?,
+                    date: r.get(1)?,
+                    from,
                     subject: r.get(4)?,
                     count: r.get(5)?,
                     unread: r.get::<_, i64>(6)? > 0,
@@ -923,20 +938,27 @@ impl Db {
 
     // ---------------------------------------------------------------- contacts
 
-    pub fn suggest_contacts(&self, query: &str, limit: i64) -> Result<Vec<Addr>> {
-        let q = query.trim();
-        if q.is_empty() {
-            return Ok(Vec::new());
-        }
-        let like = format!("%{}%", q.replace(['%', '_'], ""));
+    /// Everyone mail was exchanged with, most frequent first: senders, and
+    /// (weighing more) the recipients of one's own sent mail, who may never
+    /// have written back. Built in one pass (~90 ms on 48k messages) for the
+    /// engine to keep and filter while the user types.
+    pub fn contacts(&self) -> Result<Vec<Addr>> {
         let c = self.lock();
         let mut stmt = c.prepare(
-            "SELECT max(from_name), from_addr, COUNT(*) n FROM messages
-             WHERE from_addr != '' AND (from_addr LIKE ?1 OR from_name LIKE ?1)
-             GROUP BY from_addr ORDER BY n DESC LIMIT ?2",
+            // a "name" that is an address (some mailers repeat it) is no name
+            "SELECT max(CASE WHEN name LIKE '%@%' THEN NULL ELSE nullif(trim(name), '') END),
+                    max(addr), sum(w) n FROM (
+                SELECT from_addr addr, from_name name, 1 w FROM messages WHERE from_addr != ''
+                UNION ALL
+                SELECT json_extract(j.value, '$.addr'), json_extract(j.value, '$.name'), 3
+                FROM messages m JOIN folders f ON f.id = m.folder_id AND f.role = 'sent', json_each(m.to_addrs) j
+                UNION ALL
+                SELECT json_extract(j.value, '$.addr'), json_extract(j.value, '$.name'), 3
+                FROM messages m JOIN folders f ON f.id = m.folder_id AND f.role = 'sent', json_each(m.cc_addrs) j
+             ) WHERE addr LIKE '%@%' GROUP BY lower(addr) ORDER BY n DESC",
         )?;
         let rows = stmt
-            .query_map(params![like, limit], |r| {
+            .query_map([], |r| {
                 Ok(Addr {
                     name: r.get::<_, Option<String>>(0)?.unwrap_or_default(),
                     addr: r.get(1)?,

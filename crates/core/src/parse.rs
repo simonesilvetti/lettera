@@ -237,6 +237,23 @@ pub fn extract_attachment(raw: &[u8], index: u32) -> Option<Vec<u8>> {
 
 /// Splits a recipients field typed by the user: `a@b.it, Nome <c@d.it>; e@f.it`.
 pub fn parse_recipients(s: &str) -> Vec<Addr> {
+    recipient_tokens(s)
+        .iter()
+        .filter_map(|t| parse_one(t))
+        .collect()
+}
+
+/// The entries of a recipient field that are not an address (no `@`): sending
+/// must stop on them rather than leave someone out without a word.
+pub fn invalid_recipients(s: &str) -> Vec<String> {
+    recipient_tokens(s)
+        .into_iter()
+        .filter(|t| parse_one(t).is_none())
+        .collect()
+}
+
+/// Splits on `,` and `;` outside quotes and angle brackets.
+fn recipient_tokens(s: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
     let mut in_quotes = false;
@@ -244,9 +261,7 @@ pub fn parse_recipients(s: &str) -> Vec<Addr> {
     let mut flush = |cur: &mut String| {
         let t = cur.trim();
         if !t.is_empty() {
-            if let Some(a) = parse_one(t) {
-                out.push(a);
-            }
+            out.push(t.to_string());
         }
         cur.clear();
     };

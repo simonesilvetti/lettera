@@ -130,6 +130,47 @@ fn same_message_in_two_folders_shares_thread() {
 }
 
 #[test]
+fn sent_rows_show_the_recipient() {
+    let (db, acc, _) = setup();
+    let sent = db
+        .upsert_folder(acc, "Sent", Some("/"), Some("sent"))
+        .unwrap();
+    insert(&db, acc, sent, 1, "01_plain.eml");
+    let row = &db
+        .list_threads(sent, "", 0, 10, chrono::Local::now())
+        .unwrap()
+        .items[0];
+    let view = db.thread(&row.thread_id).unwrap();
+    assert_eq!(row.from, format!("to {}", view.messages[0].to[0].display()));
+}
+
+#[test]
+fn contacts_include_people_written_to() {
+    let (db, acc, inbox) = setup();
+    let sent = db
+        .upsert_folder(acc, "Sent", Some("/"), Some("sent"))
+        .unwrap();
+    insert(&db, acc, inbox, 1, "08_attachment_pdf.eml");
+    let id = db
+        .insert_messages(
+            acc,
+            sent,
+            &[(
+                1,
+                parse_envelope(&fixture("01_plain.eml")),
+                String::new(),
+                1,
+            )],
+        )
+        .unwrap()[0];
+    let to = db.message(id).unwrap().to[0].addr.clone();
+    let contacts: Vec<String> = db.contacts().unwrap().into_iter().map(|a| a.addr).collect();
+    // a recipient of sent mail comes first, the sender of received mail is there too
+    assert_eq!(contacts.first(), Some(&to));
+    assert!(contacts.len() >= 2);
+}
+
+#[test]
 fn reading_one_copy_reads_them_all() {
     let (db, acc, inbox) = setup();
     let important = db.upsert_folder(acc, "Important", Some("/"), None).unwrap();
