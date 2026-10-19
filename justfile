@@ -22,6 +22,12 @@ test-integration:
     docker compose -f docker-compose.test.yml up -d
     LETTERA_IMAP_TEST=1 cargo test -p lettera-core --test dovecot --test engine_e2e
 
+# the real frontend against the real engine in a browser (wiki/testing.md):
+# `home` must be a copy of a config and database, never the real ones
+ui-bridge home:
+    npm run build
+    LETTERA_HOME={{home}} RUST_LOG=ui_bridge=info,lettera_core=info cargo run --release -p lettera-core --example ui_bridge
+
 lint:
     cargo fmt --all -- --check
     cargo clippy --workspace --all-targets -- -D warnings

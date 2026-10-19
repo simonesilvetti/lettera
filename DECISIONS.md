@@ -79,9 +79,17 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 ## Composing
 
 - Drafts live in SQLite (autosave every 5 s) and, on closing the composer, as a copy in the server's Drafts folder (`\Draft`, a fresh Message-ID each time, the previous copy removed by `UID SEARCH HEADER Message-ID`; on Gmail moved to the trash, since an expunge would leave it in All Mail). The local row keeps kind, source and quote and is found again through that Message-ID. `c` always starts a new message; `r`, `a`, `f` resume the reply/forward already started on that message; older drafts are reopened from the Drafts folder with `i`. Drafts made by other clients open too, rebuilt from the message (attachments copied under `data_dir/drafts/`).
+- List rows show the newest message of the thread; in Sent and Drafts the sender column shows `to <first recipient>`.
+- Contacts for autocompletion: senders plus recipients of sent mail (weighing more), read once and kept 10 minutes.
+- Threads of messages without reply headers are merged when they match, so threading does not depend on arrival order.
+- Html-only mail is read as text with layout tables as one column (`html2text` raw mode); links stay as footnotes.
+- Tauri commands that touch the database are `async`, off the main thread.
 - The quote is kept apart from the body, hidden behind `⌃q` and always appended on send.
 - Signature from the config (`signature`, global or per account, "" = none): put in the draft body after `-- `, above the quote, so it can be seen and edited before sending.
 - Forwarding quotes the original text but does not carry its attachments.
+- A draft keeps the `In-Reply-To`/`References` of the message it answers from the start, so it can be saved and sent after that message left the database.
+- Replying to one's own message goes to its recipients (oneself excluded), as other clients do.
+- Sending stops when a recipient entry is not an address, instead of leaving it out.
 - Storing or discarding a draft changes the local Drafts folder at once (same row id, body included, a local UID ≥ `0xFFF0_0000` until sync sees the server copy and the row takes its UID): the composer never waits for the server.
 - `esc` in compose saves to the Drafts folder and closes (asked for by the user); a draft left blank or untouched is not stored. Discarding is `⌃d`, pressed twice.
 - `send` waits for SMTP delivery (a deliberate exception to the 50 ms rule) to show any error right away.
