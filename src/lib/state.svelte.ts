@@ -230,6 +230,7 @@ export async function selectFolder(id: number) {
   closeThread();
   resetList();
   await loadPage(0);
+  void api.prefetchFolder(id).catch(() => {});
 }
 
 async function loadPage(page: number, force = false) {

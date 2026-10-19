@@ -40,7 +40,8 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Every UID missing locally is new (not only those ≥ UIDNEXT): an interrupted first sync completes by itself.
 - Every selectable folder is synced, *All Mail* on Gmail included; envelopes only.
 - Sync window `sync_months` (default 48, 0 = everything, per-account override): `UID SEARCH SINCE` by arrival date, then flags from `<lowest UID>:*`; messages leaving the window are deleted locally only.
-- Bodies on demand plus prefetch of the last 30 days of INBOX, at most 150 per round, and of the selected thread (last 10 messages, 150 ms after the selection rests).
+- Bodies on demand plus prefetch of the last 30 days of INBOX and Sent, at most 150 per folder per round, of the newest 20 threads of a folder when it is opened (on the sync connection), and of the selected thread (last 10 messages, 150 ms after the selection rests).
+- The action connection opens when the account starts and is pinged every 4 idle minutes (replaced at once if dead), so a click never waits for a login.
 - Body downloads go ahead of other queued actions, are never queued twice, and use the copy in the folder already selected on the connection (else INBOX), one `UID FETCH` per folder.
 - On Gmail a flag change is sent once per message (labels share flags); other servers get it on every copy.
 - `has_attachments` is guessed from the header (`multipart/mixed`) until the body arrives, then corrected by parsing; no BODYSTRUCTURE.

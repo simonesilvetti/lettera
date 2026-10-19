@@ -34,6 +34,10 @@ const PREFETCH_LIMIT: i64 = 150;
 /// A connection unused for this long is pinged before it is trusted again.
 /// Shorter pauses are covered by TCP keepalive and the user timeout (see
 /// `imap::detect_dead_peer`); the ping costs a round trip (~200 ms on Gmail).
+/// An idle action connection is pinged this often (Gmail drops idle sessions).
+const KEEP_WARM: Duration = Duration::from_secs(4 * 60);
+/// Threads at the top of an opened folder whose bodies are fetched ahead.
+const PREFETCH_FOLDER: i64 = 20;
 /// Messages of a selected thread whose bodies are fetched ahead.
 const PREFETCH_THREAD: usize = 10;
 const IDLE_CHECK: Duration = Duration::from_secs(5 * 60);
@@ -87,10 +91,38 @@ enum Action {
 /// Work for the background connection.
 #[derive(Debug, Clone, Default)]
 struct SyncJob {
-    /// Empty = every folder (and the folder list).
+    /// Empty (with no `inbox` and no `bodies`) = every folder and the folder list.
     folders: Vec<i64>,
     inbox: bool,
     notify: bool,
+    /// Bodies to download ahead, before any folder (the folder the user just
+    /// opened): here they do not hold up the action connection.
+    bodies: Vec<i64>,
+    /// Set when a full sync was merged into a job that also carries bodies.
+    full: bool,
+}
+
+impl SyncJob {
+    fn is_full(&self) -> bool {
+        self.full || self.folders.is_empty() && !self.inbox && self.bodies.is_empty()
+    }
+
+    fn merge(&mut self, more: SyncJob) {
+        let full = self.is_full() || more.is_full();
+        self.folders.extend(more.folders);
+        self.inbox |= more.inbox;
+        self.notify |= more.notify;
+        for id in more.bodies {
+            if !self.bodies.contains(&id) {
+                self.bodies.push(id);
+            }
+        }
+        if full {
+            self.folders.clear();
+            self.inbox = false;
+            self.full = true;
+        }
+    }
 }
 
 struct Worker {
@@ -302,6 +334,15 @@ impl Inner {
         let Some(c) = conn.as_mut() else {
             return Ok(());
         };
+        if !job.bodies.is_empty() {
+            sync::fetch_bodies(c, &self.db, &job.bodies, |id| {
+                self.emit(Event::BodyReady { id })
+            })
+            .await?;
+        }
+        if !job.is_full() && job.folders.is_empty() && !job.inbox {
+            return Ok(());
+        }
         let account_id = self.db.account_id(email)?;
         let since = {
             let cfg = self.config.read().unwrap_or_else(|p| p.into_inner());
@@ -312,7 +353,7 @@ impl Inner {
                 .and_then(|a| cfg.sync_months(a));
             config::sync_since(chrono::Local::now().date_naive(), months)
         };
-        let folders = if job.folders.is_empty() && !job.inbox {
+        let folders = if job.is_full() {
             sync::sync_folder_list(c, &self.db, account_id).await?
         } else {
             let mut all = self.db.folders(account_id)?;
@@ -334,30 +375,31 @@ impl Inner {
                     folder: f.id,
                 });
             }
-            if f.role.as_deref() == Some("inbox") {
-                if job.notify {
-                    let mut items: Vec<_> = self
-                        .db
-                        .messages(&r.new_ids)?
-                        .into_iter()
-                        .filter(|m| !has_flag(&m.flags, "\\Seen"))
-                        .collect();
-                    items.sort_by_key(|m| std::cmp::Reverse(m.date));
-                    if !items.is_empty() {
-                        self.emit(Event::NewMail {
-                            account: email.to_string(),
-                            items: items
-                                .into_iter()
-                                .map(|m| NewMailItem {
-                                    id: m.id,
-                                    thread_id: m.thread_id.clone(),
-                                    from: m.from.display(),
-                                    subject: m.subject.clone(),
-                                })
-                                .collect(),
-                        });
-                    }
+            if f.role.as_deref() == Some("inbox") && job.notify {
+                let mut items: Vec<_> = self
+                    .db
+                    .messages(&r.new_ids)?
+                    .into_iter()
+                    .filter(|m| !has_flag(&m.flags, "\\Seen"))
+                    .collect();
+                items.sort_by_key(|m| std::cmp::Reverse(m.date));
+                if !items.is_empty() {
+                    self.emit(Event::NewMail {
+                        account: email.to_string(),
+                        items: items
+                            .into_iter()
+                            .map(|m| NewMailItem {
+                                id: m.id,
+                                thread_id: m.thread_id.clone(),
+                                from: m.from.display(),
+                                subject: m.subject.clone(),
+                            })
+                            .collect(),
+                    });
                 }
+            }
+            // what is read most: received mail, and sent mail when looking back
+            if matches!(f.role.as_deref(), Some("inbox") | Some("sent")) {
                 let recent = chrono::Utc::now().timestamp() - PREFETCH_DAYS * 86_400;
                 let fresh = self.db.folder(f.id)?;
                 for id in sync::prefetch_bodies(c, &self.db, &fresh, recent, PREFETCH_LIMIT).await?
@@ -381,18 +423,12 @@ impl Inner {
             };
             // coalesce whatever else queued up meanwhile
             while let Ok(more) = rx.try_recv() {
-                if more.folders.is_empty() && !more.inbox || job.folders.is_empty() && !job.inbox {
-                    job = SyncJob {
-                        notify: job.notify || more.notify,
-                        ..SyncJob::default()
-                    };
-                } else {
-                    job.folders.extend(more.folders);
-                    job.inbox |= more.inbox;
-                    job.notify |= more.notify;
-                }
+                job.merge(more);
             }
-            self.status(&email, SyncState::Syncing, "sync");
+            let quiet = !job.is_full() && job.folders.is_empty() && !job.inbox;
+            if !quiet {
+                self.status(&email, SyncState::Syncing, "sync");
+            }
             check_alive(&mut conn, used).await;
             let mut res = guarded(self.run_sync(&email, &mut conn, &job)).await;
             used = Instant::now();
@@ -606,6 +642,20 @@ impl Inner {
         }
     }
 
+    /// Pings the idle action connection; a dead one is replaced at once.
+    async fn keep_warm(&self, email: &str, conn: &mut Option<RealImap>) {
+        if let Some(c) = conn.as_mut() {
+            if matches!(
+                tokio::time::timeout(Duration::from_secs(10), c.noop()).await,
+                Ok(Ok(()))
+            ) {
+                return;
+            }
+            tracing::info!("action connection {email} went stale, reconnecting");
+        }
+        *conn = self.connect(email).await.ok();
+    }
+
     fn release(&self, a: &Action) {
         match a {
             Action::Bodies(ids) => {
@@ -632,11 +682,24 @@ impl Inner {
         let mut conn: Option<RealImap> = None;
         let mut used = Instant::now();
         let mut queue: std::collections::VecDeque<Action> = Default::default();
+        // connected and kept alive ahead, so a click never waits for a login
+        // (~800 ms on Gmail), a ping or a server that dropped an idle session
+        match self.connect(&email).await {
+            Ok(c) => conn = Some(c),
+            Err(e) => tracing::info!("action connection {email}: {e}"),
+        }
         loop {
             if queue.is_empty() {
-                match rx.recv().await {
-                    Some(a) => queue.push_back(a),
-                    None => break,
+                tokio::select! {
+                    a = rx.recv() => match a {
+                        Some(a) => queue.push_back(a),
+                        None => break,
+                    },
+                    _ = tokio::time::sleep(KEEP_WARM) => {
+                        self.keep_warm(&email, &mut conn).await;
+                        used = Instant::now();
+                        continue;
+                    }
                 }
             }
             while let Ok(a) = rx.try_recv() {
@@ -1086,6 +1149,39 @@ impl Engine {
 
     pub fn get_thread(&self, thread_id: &str) -> Result<ThreadView> {
         self.inner.db.thread(thread_id)
+    }
+
+    /// Downloads, on the sync connection, the bodies of the newest threads of
+    /// a folder the user just opened. Not marked as on the way: a click on one
+    /// of them still fetches it at once on the action connection.
+    pub fn prefetch_folder(&self, folder_id: i64) -> Result<()> {
+        let folder = self.inner.db.folder(folder_id)?;
+        let email = self.inner.db.account_email(folder.account_id)?;
+        let page =
+            self.inner
+                .db
+                .list_threads(folder_id, "", 0, PREFETCH_FOLDER, chrono::Local::now())?;
+        let mut ids = Vec::new();
+        for t in page.items {
+            // the newest messages of each thread: the ones opening it shows
+            let mut rows = self.inner.db.messages(&t.ids)?;
+            rows.sort_by_key(|m| std::cmp::Reverse(m.date));
+            for m in rows.into_iter().take(3) {
+                if self.inner.db.body(m.id)?.is_none() {
+                    ids.push(m.id);
+                }
+            }
+        }
+        if !ids.is_empty() {
+            self.inner.request_sync(
+                &email,
+                SyncJob {
+                    bodies: ids,
+                    ..Default::default()
+                },
+            );
+        }
+        Ok(())
     }
 
     /// Starts downloading the bodies of a thread the user is likely to open
@@ -1704,4 +1800,27 @@ fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SyncJob;
+
+    #[test]
+    fn body_prefetch_is_not_a_full_sync() {
+        let bodies = SyncJob {
+            bodies: vec![1, 2],
+            ..Default::default()
+        };
+        assert!(!bodies.is_full());
+        let mut job = SyncJob {
+            inbox: true,
+            ..Default::default()
+        };
+        job.merge(bodies);
+        assert!(job.inbox && job.folders.is_empty() && job.bodies == [1, 2]);
+        // a full sync swallows folders but keeps the bodies
+        job.merge(SyncJob::default());
+        assert!(job.is_full() && job.bodies == [1, 2]);
+    }
 }
