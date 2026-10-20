@@ -25,10 +25,17 @@ pub fn listen(webview: &webkit2gtk::WebView) {
     let Some(list) = webview.drag_dest_get_target_list() else {
         return;
     };
-    // the received data is matched to this `info` through the target list
+    // the received data is matched to its `info` through the target list;
+    // GTK's own entry for the portal (from `gtk_target_list_add_uri_targets`)
+    // has the URI list's, which would hand the reply to wry
+    list.remove(&atom);
     list.add(&atom, 0, PORTAL_INFO);
 
+    // one request per drag; on Wayland the same context comes back for the
+    // next drag, so leaving the window (which precedes every drop) resets it
     let current = std::rc::Rc::new(std::cell::RefCell::new(None::<gtk::gdk::DragContext>));
+    let reset = current.clone();
+    webview.connect_drag_leave(move |_, _, _| *reset.borrow_mut() = None);
     webview.connect_drag_motion(move |w, ctx, _, _, time| {
         if current.borrow().as_ref() != Some(ctx) {
             *current.borrow_mut() = Some(ctx.clone());
