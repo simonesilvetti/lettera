@@ -10,3 +10,10 @@ flatpak/build/
 flatpak/repo/
 .flatpak-builder/
 lettera.flatpak
+
+# internal material: project wiki, agent instructions, original spec and sources
+wiki/
+raw/
+CLAUDE.md
+llm-wiki.md
+promt.md

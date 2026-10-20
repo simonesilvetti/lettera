@@ -22,7 +22,8 @@ test-integration:
     docker compose -f docker-compose.test.yml up -d
     LETTERA_IMAP_TEST=1 cargo test -p lettera-core --test dovecot --test engine_e2e
 
-# the real frontend against the real engine in a browser (wiki/testing.md):
+# the real frontend against the real engine in a headless browser, driven by
+# tools/ui/drive.mjs and tools/ui/t.py;
 # `home` must be a copy of a config and database, never the real ones
 ui-bridge home:
     npm run build

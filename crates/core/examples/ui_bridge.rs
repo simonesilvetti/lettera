@@ -1,5 +1,5 @@
 //! The real engine behind plain HTTP, so the real frontend can be driven in a
-//! headless browser without Tauri (see `tools/ui/` and wiki/testing.md).
+//! headless browser without Tauri (see `tools/ui/drive.mjs` and `tools/ui/t.py`).
 //!
 //! - `POST /invoke/<command>` with the command's JSON arguments, like Tauri's
 //!   `invoke`; the reply is the result, or the error as a JSON string (400).
