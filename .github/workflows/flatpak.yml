@@ -27,8 +27,10 @@ jobs:
           flatpak install --user -y --noninteractive flathub org.flatpak.Builder
 
       - name: Build
+        # the sandboxed builder installs the SDK through the host's flatpak
+        # over the session bus, which a runner doesn't have
         run: |
-          flatpak run org.flatpak.Builder --user --force-clean --install-deps-from=flathub \
+          dbus-run-session -- flatpak run org.flatpak.Builder --user --force-clean --install-deps-from=flathub \
             --repo=flatpak/repo flatpak/build flatpak/com.atomicgrove.lettera.yml
           flatpak build-bundle flatpak/repo lettera.flatpak com.atomicgrove.lettera \
             --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
