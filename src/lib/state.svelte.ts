@@ -389,8 +389,26 @@ export function moveSelection(delta: number) {
   app.selected = Math.max(0, Math.min(app.total - 1, app.selected + delta));
 }
 
+/** j/k inside an open message longer than the pane: scroll through it first,
+ * and move the cursor only once its end (or start) is in view. */
+function scrollWithin(delta: number) {
+  const pane = document.querySelector<HTMLElement>('.thread');
+  const el = pane?.querySelector<HTMLElement>(`[data-message="${app.cursor}"]`);
+  if (!pane || !el || !app.expanded[cursorMessage()?.id ?? -1]) return false;
+  const view = pane.getBoundingClientRect();
+  const box = el.getBoundingClientRect();
+  // the message must be on screen: after a mouse scroll elsewhere, j/k just move
+  if (box.bottom <= view.top || box.top >= view.bottom) return false;
+  const left = delta > 0 ? box.bottom - view.bottom : view.top - box.top;
+  if (left <= 1) return false;
+  const step = Math.min(left, Math.max(80, pane.clientHeight * 0.4));
+  pane.scrollBy({ top: delta > 0 ? step : -step });
+  return true;
+}
+
 export function moveCursor(delta: number) {
   if (!app.thread) return;
+  if (scrollWithin(delta)) return;
   app.cursor = Math.max(0, Math.min(app.thread.messages.length - 1, app.cursor + delta));
 }
 

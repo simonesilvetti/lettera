@@ -108,6 +108,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Resizable list pane: a 7px invisible grab area on the border (accent line on hover), list ≥ 300px and thread ≥ 360px, double-click resets to 420px; width kept in `localStorage` (a per-machine convenience). The sender column shrinks with the list (`clamp(96px, 32%, 150px)`).
 - `open config` uses `gio open` on Linux (terminal editors open in a terminal), the opener plugin as a fallback and inside Flatpak.
 - Vim-style panes: `h`/`←` focus the list without closing the thread, `l`/`→` open/focus the selected thread, and in the thread expand the current message; in the thread `h`/`←` first collapses an open message, then goes back to the list. The inactive pane's selection bar turns muted.
+- In the thread `j`/`k` scroll through an open message longer than the pane (40% of its height per press) and move to the next/previous message only once its end/start is in view, so reading a long thread needs no other key.
 - Opening a thread marks it read; `u` marks it unread and closes the thread.
 - Archiving or deleting with a thread open opens the next thread.
 - Virtual list with fixed-height rows (38 px), group headers included.

@@ -80,7 +80,7 @@
   }
 </script>
 
-<article bind:this={el} class:cursor={isCursor}>
+<article bind:this={el} class:cursor={isCursor} data-message={index}>
   {#if !expanded}
     <button class="collapsed" onclick={select}>
       <span class="who ellipsis" class:unread={message.unread}>{message.from.name || message.from.addr}</span>
