@@ -1,39 +1,66 @@
 //! Files dropped on the window, inside Flatpak.
 //!
-//! WebKit's drop target asks the file manager for `text/uri-list`, which holds
-//! paths of the host that the sandbox cannot read. The file transfer portal
-//! hands over the same files as `/run/user/…/doc/…` paths the app can read;
-//! GTK turns that target into such paths in `gtk_selection_data_get_uris`, so
-//! putting it first in the webview's target list is enough. Sources that do
-//! not offer it (non-GTK apps) fall back to the plain URI list.
+//! The drop event of Tauri carries the `text/uri-list` that WebKit asks the
+//! file manager for: paths of the host, which the sandbox cannot read. The
+//! file transfer portal hands over the same files as `/run/user/…/doc/…`
+//! paths the app can read, but WebKit only requests a fixed set of targets
+//! (`DropTargetGtk3.cpp`), so lettera requests the portal's target itself when
+//! a drag enters the window. GTK resolves it into readable paths in
+//! `gtk_selection_data_get_uris`; `dropped_files` then swaps them in. Sources
+//! that do not offer the portal (non-GTK apps) keep their plain paths.
 
-use gtk::glib::translate::ToGlibPtr;
+use std::sync::Mutex;
+
 use gtk::prelude::*;
 
-const PORTAL_TARGETS: [&str; 2] = [
-    "application/vnd.portal.filetransfer",
-    "application/vnd.portal.files",
-];
+const PORTAL_TARGET: &str = "application/vnd.portal.filetransfer";
+/// Any `info` WebKit and wry do not use, so neither treats this data as theirs.
+const PORTAL_INFO: u32 = 0x1e77;
 
-pub fn prefer_portal(webview: &webkit2gtk::WebView) {
-    let Some(old) = webview.drag_dest_get_target_list() else {
+/// The readable paths of the drag in progress, once the portal sent them.
+static PORTAL_PATHS: Mutex<Option<Vec<String>>> = Mutex::new(None);
+
+pub fn listen(webview: &webkit2gtk::WebView) {
+    let atom = gtk::gdk::Atom::intern(PORTAL_TARGET);
+    let Some(list) = webview.drag_dest_get_target_list() else {
         return;
     };
-    // the same `info` as the URI list, so wry treats the data as file paths
-    let Some(info) = old.find(&gtk::gdk::Atom::intern("text/uri-list")) else {
-        return;
-    };
-    let entries: Vec<gtk::TargetEntry> = PORTAL_TARGETS
-        .iter()
-        .map(|t| gtk::TargetEntry::new(t, gtk::TargetFlags::empty(), info))
-        .collect();
-    let list = gtk::TargetList::new(&entries);
-    // keep every target WebKit had, after the portal's
-    unsafe {
-        let mut n = 0;
-        let table = gtk::ffi::gtk_target_table_new_from_list(old.to_glib_none().0, &mut n);
-        gtk::ffi::gtk_target_list_add_table(list.to_glib_none().0, table, n as u32);
-        gtk::ffi::gtk_target_table_free(table, n);
+    // the received data is matched to this `info` through the target list
+    list.add(&atom, 0, PORTAL_INFO);
+
+    let current = std::rc::Rc::new(std::cell::RefCell::new(None::<gtk::gdk::DragContext>));
+    webview.connect_drag_motion(move |w, ctx, _, _, time| {
+        if current.borrow().as_ref() != Some(ctx) {
+            *current.borrow_mut() = Some(ctx.clone());
+            *PORTAL_PATHS.lock().unwrap() = None;
+            if ctx.list_targets().contains(&atom) {
+                w.drag_get_data(ctx, &atom, time);
+            }
+        }
+        false
+    });
+    webview.connect_drag_data_received(|w, _, _, _, data, info, _| {
+        if info != PORTAL_INFO {
+            return;
+        }
+        let paths: Vec<String> = data
+            .uris()
+            .iter()
+            .filter_map(|u| gtk::glib::filename_from_uri(u).ok())
+            .map(|(p, _)| p.display().to_string())
+            .collect();
+        if !paths.is_empty() {
+            *PORTAL_PATHS.lock().unwrap() = Some(paths);
+        }
+        // WebKit counts the data it asked for; this reply is not one of them
+        w.stop_signal_emission_by_name("drag-data-received");
+    });
+}
+
+/// The paths of a drop the sandbox can read: the portal's, when it sent them.
+pub fn readable(paths: Vec<String>) -> Vec<String> {
+    match PORTAL_PATHS.lock().unwrap().take() {
+        Some(portal) if portal.len() == paths.len() => portal,
+        _ => paths,
     }
-    webview.drag_dest_set_target_list(Some(&list));
 }

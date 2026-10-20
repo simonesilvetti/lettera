@@ -32,7 +32,7 @@
     // files dragged from the desktop onto the window become attachments
     const unlisten = getCurrentWebview().onDragDropEvent(({ payload }) => {
       dropping = payload.type === 'enter' || payload.type === 'over';
-      if (payload.type === 'drop') addAttachments(payload.paths);
+      if (payload.type === 'drop') void api.droppedFiles(payload.paths).then(addAttachments);
     });
     return () => void unlisten.then((f) => f());
   });

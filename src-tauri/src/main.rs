@@ -315,6 +315,15 @@ async fn pick_files(app: AppHandle) -> Res<Vec<String>> {
         .collect())
 }
 
+/// Files dropped on the window, as paths lettera can read (see src/drop.rs).
+#[tauri::command(rename_all = "snake_case")]
+fn dropped_files(paths: Vec<String>) -> Vec<String> {
+    #[cfg(target_os = "linux")]
+    return drop::readable(paths);
+    #[cfg(not(target_os = "linux"))]
+    paths
+}
+
 #[tauri::command(rename_all = "snake_case")]
 fn sync_now(engine: State<Engine>, account: Option<String>) {
     engine.sync_now(account.as_deref());
@@ -514,7 +523,7 @@ fn main() -> anyhow::Result<()> {
             #[cfg(target_os = "linux")]
             if std::env::var_os("FLATPAK_ID").is_some() {
                 if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.with_webview(|wv| drop::prefer_portal(&wv.inner()));
+                    let _ = w.with_webview(|wv| drop::listen(&wv.inner()));
                 }
             }
             // the window is created hidden; it stays so only when started from
@@ -562,6 +571,7 @@ fn main() -> anyhow::Result<()> {
             list_attachments,
             save_attachment,
             pick_files,
+            dropped_files,
             sync_now,
             get_theme,
             open_config,

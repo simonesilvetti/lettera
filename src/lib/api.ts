@@ -47,6 +47,7 @@ export const api = {
     invoke<AttachmentInfo[]>('list_attachments', { message_id }),
   saveAttachment: (attachment_id: number) => invoke<string | null>('save_attachment', { attachment_id }),
   pickFiles: () => invoke<string[]>('pick_files'),
+  droppedFiles: (paths: string[]) => invoke<string[]>('dropped_files', { paths }),
   syncNow: (account: string | null) => invoke<void>('sync_now', { account }),
   getTheme: () => invoke<ThemePayload>('get_theme'),
   openConfig: () => invoke<string>('open_config'),

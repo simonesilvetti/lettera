@@ -103,7 +103,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Tauri commands take snake_case arguments (`rename_all`), as in the spec.
 - Commands beyond the spec's list: `prepare_draft`, `discard_draft`, `pick_files`, `open_url`, `enable_images`, `suggest_contacts`, `app_info`; extra events: `body:ready`, `accounts:changed`.
 - Key hints are also buttons that run the registry command; disabled when the command is not available.
-- Removing an attachment while composing: click its name. Files dragged onto the window while composing are attached (Tauri's native drop event, which gives real paths; the HTML5 drop would only give file contents).
+- Removing an attachment while composing: click its name. Files dragged onto the window while composing are attached (Tauri's native drop event, which gives real paths; the HTML5 drop would only give file contents). In Flatpak lettera also asks the file manager for the file transfer portal's copy of the files, which the sandbox can read, instead of widening its filesystem access.
 - The sync status in the bottom bar is a button for `sync now`.
 - Resizable list pane: a 7px invisible grab area on the border (accent line on hover), list ≥ 300px and thread ≥ 360px, double-click resets to 420px; width kept in `localStorage` (a per-machine convenience). The sender column shrinks with the list (`clamp(96px, 32%, 150px)`).
 - `open config` uses `gio open` on Linux (terminal editors open in a terminal), the opener plugin as a fallback and inside Flatpak.
