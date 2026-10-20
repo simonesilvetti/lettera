@@ -33,6 +33,9 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # tray icon as a StatusNotifierItem (Tauri's tray reports no left click there)
 ksni = { version = "0.3", default-features = false, features = ["tokio"] }
 notify-rust = "4.18"
+# Flatpak: files dropped on the window come through the document portal (src/drop.rs)
+gtk = "0.18"
+webkit2gtk = "2.0"
 
 # elsewhere the tray icon is Tauri's own (on Linux it is ksni, see src/tray.rs)
 [target.'cfg(not(target_os = "linux"))'.dependencies]

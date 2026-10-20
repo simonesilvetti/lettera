@@ -1806,7 +1806,9 @@ impl Engine {
         body.push('\n');
         let mut attachments = Vec::new();
         for p in &d.attachments {
-            let bytes = tokio::fs::read(p).await?;
+            let bytes = tokio::fs::read(p)
+                .await
+                .map_err(|e| Error::Other(format!("cannot read attachment {p}: {e}")))?;
             let name = Path::new(p)
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())

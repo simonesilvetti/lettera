@@ -2,6 +2,8 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "linux")]
+mod drop;
 mod tray;
 
 use std::path::PathBuf;
@@ -509,6 +511,12 @@ fn main() -> anyhow::Result<()> {
             let engine = Engine::start(rt, paths, Arc::new(sink), opener)?;
             app.manage(engine);
             sync_autostart(app.handle());
+            #[cfg(target_os = "linux")]
+            if std::env::var_os("FLATPAK_ID").is_some() {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.with_webview(|wv| drop::prefer_portal(&wv.inner()));
+                }
+            }
             // the window is created hidden; it stays so only when started from
             // autostart and the tray icon can bring it back
             if !hidden {
