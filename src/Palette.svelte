@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { api } from './lib/api';
   import { commands } from './lib/commands';
   import { fuzzy, highlight } from './lib/fuzzy';
   import { available } from './lib/keys';
@@ -74,7 +75,17 @@
     {#if p.info}
       <div class="info">
         <span class="wordmark">{@html wordmark}</span>
-        <p class="muted">{app.info?.name} {app.info?.version} · license {app.info?.license} · {app.info?.config}</p>
+        <div class="about">
+          <p class="muted">{app.info?.name} {app.info?.version} · license {app.info?.license} · {app.info?.config}</p>
+          {#if app.info}
+            <p class="muted">
+              by {app.info.author} ·
+              <a href={app.info.homepage} onclick={(e) => (e.preventDefault(), api.openUrl(app.info!.homepage))}
+                >{app.info.homepage.replace(/^https?:\/\//, '')}</a
+              >
+            </p>
+          {/if}
+        </div>
       </div>
       <input class="sr" bind:this={input} aria-label="close" />
       <div class="hints muted">esc close</div>
@@ -188,6 +199,16 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+  }
+
+  .about {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .about p {
+    margin: 0;
   }
 
   .wordmark :global(svg) {

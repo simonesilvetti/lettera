@@ -3,6 +3,8 @@ name = "lettera-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+homepage.workspace = true
 
 [lib]
 name = "lettera_core"

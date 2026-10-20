@@ -451,6 +451,8 @@ struct AppInfo {
     name: &'static str,
     version: &'static str,
     license: &'static str,
+    author: &'static str,
+    homepage: &'static str,
     config: String,
 }
 
@@ -460,6 +462,8 @@ fn app_info(engine: State<Engine>) -> AppInfo {
         name: "lettera",
         version: env!("CARGO_PKG_VERSION"),
         license: env!("CARGO_PKG_LICENSE"),
+        author: env!("CARGO_PKG_AUTHORS"),
+        homepage: env!("CARGO_PKG_HOMEPAGE"),
         config: engine.config_path().display().to_string(),
     }
 }

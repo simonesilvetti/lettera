@@ -155,5 +155,7 @@ export interface AppInfo {
   name: string;
   version: string;
   license: string;
+  author: string;
+  homepage: string;
   config: string;
 }

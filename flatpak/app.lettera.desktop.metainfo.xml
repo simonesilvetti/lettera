@@ -8,6 +8,7 @@
   <developer id="app.lettera">
     <name>Simone Silvetti</name>
   </developer>
+  <url type="homepage">https://simonesilvetti.com</url>
   <description>
     <p>A minimal desktop email client for IMAP and Google accounts: plain-text reading,
     search, archiving, replies and keyboard shortcuts. It follows the Omarchy theme.</p>
