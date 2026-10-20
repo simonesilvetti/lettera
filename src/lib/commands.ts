@@ -20,6 +20,7 @@ import {
   flash,
   folderLabel,
   goToRole,
+  isGoogle,
   keepDraft,
   markRead,
   moveCursor,
@@ -35,6 +36,7 @@ import {
   send,
   setQuery,
   showInfo,
+  signInGoogle,
   syncNow,
   toggleExpanded,
   toggleFlag,
@@ -259,6 +261,15 @@ export const commands: Command[] = [
         flash(String(e), true);
       }
     },
+  },
+  {
+    // google accounts set up with oauth in the config file sign in from here
+    id: 'google-sign-in',
+    label: 'sign in with google',
+    alias: 'oauth authorize',
+    scope: 'mail',
+    when: isGoogle,
+    run: signInGoogle,
   },
   { id: 'info', label: 'info', scope: 'global', run: showInfo },
   { id: 'quit', label: 'quit', alias: 'exit close', scope: 'global', run: api.quit },

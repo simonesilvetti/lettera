@@ -71,7 +71,10 @@ For development: `just dev` (window with live reload), `just test`, `just lint`,
 
 ## First run
 
-With no accounts, lettera shows the add-account form: pick `imap` or `google`, fill in the fields and press enter. For IMAP, both the IMAP and the SMTP login are checked before anything is saved; for Google the browser opens for consent. The same form comes back with `:` → `add account`.
+With no accounts, lettera shows the add-account form: pick `google` or `imap`, fill in the fields and press enter. Both the IMAP and the SMTP login are checked before anything is saved. The same form comes back with `:` → `add account`.
+
+- **google** asks only for the email and an [app password](https://myaccount.google.com/apppasswords) (2-Step Verification must be on); the form explains how to create one. Underneath it is an ordinary IMAP account on `imap.gmail.com` and `smtp.gmail.com`.
+- **imap** asks for servers, ports and login of any other provider.
 
 ## Configuration
 
@@ -129,9 +132,9 @@ Useful environment variables:
 - `LETTERA_CA_FILE=/path/ca.pem` — extra CA certificates (servers with a private or self-signed CA);
 - `RUST_LOG=lettera_core=debug` — more detailed logs (never passwords or tokens).
 
-## Gmail without OAuth: app passwords
+## Gmail with app passwords
 
-Gmail refuses the normal account password over IMAP (`Application-specific password required`). The quickest alternative to an OAuth client:
+Gmail refuses the normal account password over IMAP (`Application-specific password required`). The `google` choice of the form does this for you; by hand:
 
 1. turn on 2-Step Verification on the Google account;
 2. create an app password at <https://myaccount.google.com/apppasswords>;
@@ -139,9 +142,9 @@ Gmail refuses the normal account password over IMAP (`Application-specific passw
 
 With `imap_host = "imap.gmail.com"` lettera still applies Gmail semantics (archiving removes the label, no duplicate copy in *Sent Mail*), just as with `type = "google"`.
 
-## Gmail: creating the OAuth client
+## Gmail with OAuth (optional)
 
-lettera signs in to Gmail with OAuth2 using a client you create in your own Google Cloud project. It is free and done once.
+Instead of an app password, lettera can sign in to Gmail with OAuth2 using a client you create in your own Google Cloud project. It is free and done once, and it is set up only through the config file.
 
 1. Open <https://console.cloud.google.com/> and create a project (top menu → *New project*, e.g. “lettera”).
 2. In *APIs & Services → Library* search for **Gmail API** and press *Enable*.
@@ -152,11 +155,11 @@ lettera signs in to Gmail with OAuth2 using a client you create in your own Goog
 4. Under *Audience* (or *Test users*) add your Gmail address as a **test user**. Leave the app in **Testing** mode: personal use needs no verification.
 5. Under *Data access* (or *Scopes*) press *Add or remove scopes* and add `https://mail.google.com/` by hand.
 6. Under *Clients* press *Create client*, application type **Desktop app**, name `lettera`. Copy the **Client ID** and **client secret**.
-7. In lettera: `add account` → `google` → name, email, client id, secret → `⏎ sign in with google`. The browser opens: pick the account, accept the “unverified app” warning (it is yours) and the consent screen. Back in lettera, sync starts on its own.
+7. In the config file add a `type = "google"` account with `client_id` and `client_secret` (see the example above), then in lettera `:` → `sign in with google`. The browser opens: pick the account, accept the “unverified app” warning (it is yours) and the consent screen. Back in lettera, sync starts on its own.
 
 Notes:
 
-- with the app in *Testing* mode Google expires the refresh token after **7 days**: when that happens the status line shows a sign-in error; run `add account` again with the same email to re-authorise (the account is not duplicated). To avoid it, press *Publish app* under *Audience*: it stays unverified (you will see the warning when signing in) but the token no longer expires;
+- with the app in *Testing* mode Google expires the refresh token after **7 days**: when that happens the status line shows a sign-in error; run `:` → `sign in with google` again. To avoid it, press *Publish app* under *Audience*: it stays unverified (you will see the warning when signing in) but the token no longer expires;
 - for Google Workspace accounts the administrator must allow IMAP access and third-party OAuth apps;
 - archiving on Gmail removes the message from INBOX and leaves it in *All Mail*; deleting moves it to *Trash*. This works with Gmail's default IMAP settings (“when a message is deleted from the last visible IMAP folder: archive the message”).
 

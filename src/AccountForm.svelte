@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { api, on } from './lib/api';
+  import { api } from './lib/api';
   import { app, flash, loadAccounts, selectAccount } from './lib/state.svelte';
   import type { NewAccount } from './lib/types';
   import wordmark from '../assets/wordmark.svg?raw';
   import Logo from './Logo.svelte';
 
-  let kind = $state<'imap' | 'google'>('imap');
+  let kind = $state<'imap' | 'google'>('google');
   let name = $state('');
   let email = $state('');
   let imapHost = $state('');
@@ -14,8 +14,6 @@
   let smtpPort = $state(465);
   let username = $state('');
   let password = $state('');
-  let clientId = $state('');
-  let clientSecret = $state('');
   let imapTls = $state<'implicit' | 'starttls'>('implicit');
   let smtpTls = $state<'implicit' | 'starttls'>('implicit');
   let busy = $state(false);
@@ -43,7 +41,24 @@
     smtpTls = tlsFor(smtpPort, 465);
   });
 
+  // a google account is set up as imap on gmail's servers with an app
+  // password: the user only sees email and password (oauth stays available
+  // through the config file, see the readme)
+  const APP_PASSWORDS = 'https://myaccount.google.com/apppasswords';
+
   function account(): NewAccount {
+    if (kind === 'google')
+      return {
+        name,
+        kind: 'imap',
+        email,
+        imap_host: 'imap.gmail.com',
+        imap_port: 993,
+        smtp_host: 'smtp.gmail.com',
+        smtp_port: 465,
+        // google shows the app password in groups of four
+        password: password.replace(/\s+/g, ''),
+      };
     return {
       name,
       kind,
@@ -54,8 +69,6 @@
       smtp_port: Number(smtpPort),
       username: username || undefined,
       password,
-      client_id: clientId,
-      client_secret: clientSecret,
       imap_tls: imapTls === tlsFor(imapPort, 993) ? undefined : imapTls,
       smtp_tls: smtpTls === tlsFor(smtpPort, 465) ? undefined : smtpTls,
     };
@@ -76,20 +89,8 @@
     busy = true;
     const addr = email.trim();
     try {
-      if (kind === 'imap') {
-        await api.addAccount(account());
-        await done(addr);
-      } else {
-        const off = await on('auth:done', async (r) => {
-          if (r.email !== addr) return;
-          off();
-          busy = false;
-          if (r.ok) await done(addr);
-          else error = r.error ?? 'sign-in failed';
-        });
-        await api.startGoogleAuth(account());
-        return;
-      }
+      await api.addAccount(account());
+      await done(addr);
     } catch (err) {
       error = String(err);
     }
@@ -115,15 +116,20 @@
     <div class="row">
       <span class="muted">type</span>
       <span class="kinds">
-        <button type="button" class:on={kind === 'imap'} onclick={() => (kind = 'imap')}>imap</button>
-        <span class="muted">·</span>
         <button type="button" class:on={kind === 'google'} onclick={() => (kind = 'google')}>google</button>
+        <span class="muted">·</span>
+        <button type="button" class:on={kind === 'imap'} onclick={() => (kind = 'imap')}>imap</button>
       </span>
     </div>
     <label class="row"><span class="muted">name</span><input bind:this={first} bind:value={name} placeholder="Work" /></label>
     <label class="row">
       <span class="muted">email</span>
-      <input bind:value={email} onblur={guess} placeholder="name@example.com" required />
+      <input
+        bind:value={email}
+        onblur={() => kind === 'imap' && guess()}
+        placeholder={kind === 'google' ? 'name@gmail.com' : 'name@example.com'}
+        required
+      />
     </label>
 
     {#if kind === 'imap'}
@@ -152,26 +158,34 @@
         <input type="password" bind:value={password} required />
       </label>
     {:else}
-      <label class="row"><span class="muted">client id</span><input bind:value={clientId} required /></label>
       <label class="row">
-        <span class="muted">secret</span>
-        <input bind:value={clientSecret} required />
+        <span class="muted">password</span>
+        <input type="password" bind:value={password} placeholder="app password, see below" required />
       </label>
     {/if}
     </div>
-    <p class="note muted">
-      {kind === 'imap'
-        ? 'click tls/starttls to switch mode · the password goes into the system keyring'
-        : 'create a “desktop app” oauth client in the google cloud console (see readme)'}
-    </p>
+    {#if kind === 'imap'}
+      <p class="note muted">click tls/starttls to switch mode · the password goes into the system keyring</p>
+    {:else}
+      <ol class="note steps muted">
+        <li>
+          google does not accept your usual password here: create an app password at
+          <a href={APP_PASSWORDS} onclick={(e) => (e.preventDefault(), api.openUrl(APP_PASSWORDS))}
+            >myaccount.google.com/apppasswords</a
+          >
+        </li>
+        <li>type any name (e.g. “lettera”), press create and paste the 16 letters above</li>
+        <li>if the page says app passwords are not available, turn on 2-step verification first</li>
+      </ol>
+    {/if}
 
     <div class="actions">
       <button type="submit" class="hint" disabled={busy}>
         <b>⏎</b>
         {#if busy}
-          {kind === 'google' ? 'waiting for the browser…' : 'checking sign-in…'}
+          checking sign-in…
         {:else}
-          {kind === 'google' ? 'sign in with google' : 'add'}
+          add
         {/if}
       </button>
     </div>
@@ -270,6 +284,13 @@
   .note {
     margin-top: 10px;
     font-size: var(--fs-small);
+  }
+
+  .steps {
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .actions {

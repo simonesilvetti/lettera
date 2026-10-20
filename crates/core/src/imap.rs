@@ -125,7 +125,12 @@ pub fn login_error(server: &str) -> String {
     if server.contains("Application-specific password required") || server.contains("185833") {
         return "Gmail does not accept the account password over IMAP: create an app password \
                 at https://myaccount.google.com/apppasswords (2-Step Verification is required) \
-                and use it here, or add the account with type google (OAuth)."
+                and use it here."
+            .into();
+    }
+    // gmail's answer to a wrong password or app password
+    if server.contains("Invalid credentials") {
+        return "Wrong email or password (for Gmail: the app password, not the account one)."
             .into();
     }
     format!("IMAP login failed: {server}")
@@ -538,6 +543,10 @@ mod tests {
         let raw = "no response: code: Some(Alert), info: Some(\"Application-specific password required: https://support.google.com/accounts/answer/185833 (Failure)\")";
         assert!(login_error(raw).contains("apppasswords"));
         assert!(login_error("NO [AUTHENTICATIONFAILED]").starts_with("IMAP login failed"));
+        assert!(
+            login_error("NO [AUTHENTICATIONFAILED] Invalid credentials (Failure)")
+                .starts_with("Wrong email or password")
+        );
     }
 
     fn f(name: &str, attrs: &[&str]) -> RemoteFolder {

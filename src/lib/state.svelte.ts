@@ -160,6 +160,23 @@ export function isGoogle(): boolean {
   return app.accounts.find((a) => a.email === app.account)?.kind === 'google';
 }
 
+/** Runs the browser sign-in again for the current google (oauth) account. */
+export async function signInGoogle() {
+  const email = app.account;
+  const off = await on('auth:done', (r) => {
+    if (r.email !== email) return;
+    off();
+    flash(r.ok ? `signed in as ${email}` : (r.error ?? 'sign-in failed'), !r.ok);
+  });
+  try {
+    await api.startGoogleAuth({ name: '', kind: 'google', email });
+    flash('waiting for the browser…');
+  } catch (e) {
+    off();
+    flash(String(e), true);
+  }
+}
+
 // ------------------------------------------------------------- loading data
 
 export async function loadAccounts() {

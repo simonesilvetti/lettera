@@ -118,7 +118,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Dates in the list: the year appears only if it is not the current one.
 - Square unread dot: no `border-radius`, not even there.
 - List marks: muted `›` when the account's address is in `To:` of any message in the thread (Gmail's convention), in a reserved column so subjects line up; a 1.5px-stroke paperclip before the date for attachments — the only drawn glyph in the app, asked for by the user. Same marks on each message of an open thread (`to_me` computed in the frontend from `MessageView.to`).
-- The Google form asks for client id and secret: before the account exists there is nowhere else to take them from.
+- The form's `google` choice is an IMAP account on Gmail's servers with an app password: email and password are all a user can be asked for without lettera owning a Google OAuth client (a published client with the restricted Gmail scope needs Google's verification). OAuth with one's own client stays available through the config file and `sign in with google`.
 - OAuth with `access_type=offline`, `prompt=consent` and `login_hint`, to always get a refresh token for the right email.
 - The add form suggests `imap.` and `smtp.` of the email's domain; the TLS mode follows the port but can be switched with a click.
 - Notifications are sent by the Rust process, only for unread messages that arrived through IDLE; one per sync ("N new messages" when several arrive together), with the app icon (written to the data dir so the daemon can read it). On Linux they go through `notify-rust` directly, because the Tauri plugin has no click events there: clicking raises the window and opens that message in its INBOX (`open_message` event).

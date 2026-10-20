@@ -1116,6 +1116,14 @@ impl Engine {
     pub fn start_google_auth(&self, n: NewAccount) -> Result<()> {
         let mut n = n;
         n.kind = "google".into();
+        // re-authorizing an account of the config file: its client comes from there
+        if n.client_id.is_none() {
+            if let Ok(c) = self.inner.account(&n.email) {
+                n.name = c.name;
+                n.client_id = c.client_id;
+                n.client_secret = c.client_secret;
+            }
+        }
         let acc = Self::account_from(&n)?;
         let me = self.clone();
         self.inner.rt.spawn(async move {
