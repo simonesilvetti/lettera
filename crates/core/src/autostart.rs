@@ -107,11 +107,11 @@ mod tests {
     #[test]
     fn apply_writes_once_and_removes() {
         let auto = std::env::temp_dir().join(format!("lettera-autostart-{}", std::process::id()));
-        let cmd = args(&["flatpak", "run", "app.lettera.desktop", HIDDEN_FLAG]);
-        assert!(apply(&auto, true, &cmd, "app.lettera.desktop").unwrap());
-        assert!(!apply(&auto, true, &cmd, "app.lettera.desktop").unwrap());
+        let cmd = args(&["flatpak", "run", "com.atomicgrove.lettera", HIDDEN_FLAG]);
+        assert!(apply(&auto, true, &cmd, "com.atomicgrove.lettera").unwrap());
+        assert!(!apply(&auto, true, &cmd, "com.atomicgrove.lettera").unwrap());
         let text = std::fs::read_to_string(auto.join(FILE_NAME)).unwrap();
-        assert!(text.contains("Exec=flatpak run app.lettera.desktop --hidden"));
+        assert!(text.contains("Exec=flatpak run com.atomicgrove.lettera --hidden"));
         assert!(apply(&auto, false, &cmd, "x").unwrap());
         assert!(!auto.join(FILE_NAME).exists());
         assert!(!apply(&auto, false, &cmd, "x").unwrap());

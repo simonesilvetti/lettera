@@ -1,7 +1,7 @@
 # lettera as a Flatpak. Built with: just flatpak
 # The build downloads crates and npm packages (--share=network): fine for a
 # local package, Flathub would need vendored sources.
-id: app.lettera.desktop
+id: com.atomicgrove.lettera
 runtime: org.gnome.Platform
 runtime-version: "51"
 sdk: org.gnome.Sdk
@@ -47,12 +47,12 @@ modules:
       - npm run build
       - cargo build --release --locked -p lettera --features tauri/custom-protocol
       - install -Dm755 target/release/lettera /app/bin/lettera
-      - install -Dm644 flatpak/app.lettera.desktop.desktop /app/share/applications/app.lettera.desktop.desktop
-      - install -Dm644 flatpak/app.lettera.desktop.metainfo.xml /app/share/metainfo/app.lettera.desktop.metainfo.xml
-      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/app.lettera.desktop.png
-      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/app.lettera.desktop.png
-      - install -Dm644 src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/app.lettera.desktop.png
-      - install -Dm644 assets/icon.svg /app/share/icons/hicolor/scalable/apps/app.lettera.desktop.svg
+      - install -Dm644 flatpak/com.atomicgrove.lettera.desktop /app/share/applications/com.atomicgrove.lettera.desktop
+      - install -Dm644 flatpak/com.atomicgrove.lettera.metainfo.xml /app/share/metainfo/com.atomicgrove.lettera.metainfo.xml
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/com.atomicgrove.lettera.png
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/com.atomicgrove.lettera.png
+      - install -Dm644 src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/com.atomicgrove.lettera.png
+      - install -Dm644 assets/icon.svg /app/share/icons/hicolor/scalable/apps/com.atomicgrove.lettera.svg
     sources:
       - type: dir
         path: ..

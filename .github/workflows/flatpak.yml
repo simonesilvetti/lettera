@@ -1,0 +1,45 @@
+# Builds the Flatpak bundle with the same recipe as `just flatpak`.
+# A pushed tag (v0.1.0…) publishes it in a GitHub release; a manual run
+# only keeps it as a workflow artifact.
+name: flatpak
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install flatpak and flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak
+          # bubblewrap needs unprivileged user namespaces
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.flatpak.Builder
+
+      - name: Build
+        run: |
+          flatpak run org.flatpak.Builder --user --force-clean --install-deps-from=flathub \
+            --repo=flatpak/repo flatpak/build flatpak/com.atomicgrove.lettera.yml
+          flatpak build-bundle flatpak/repo lettera.flatpak com.atomicgrove.lettera \
+            --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lettera.flatpak
+          path: lettera.flatpak
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" lettera.flatpak --title "lettera ${GITHUB_REF_NAME#v}" --generate-notes

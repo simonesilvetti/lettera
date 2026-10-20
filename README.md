@@ -24,6 +24,19 @@ inbox  12 unread · 240                                              simone@exam
 hjkl navigate · ⏎ open · e archive · r reply · c compose · / search · : commands   sync 22:14 ●
 ```
 
+## Install
+
+On Linux, with [Flatpak](https://flatpak.org/setup/), download the ready-made package and install it; nothing to build:
+
+```sh
+curl -LO https://github.com/simonesilvetti/lettera/releases/latest/download/lettera.flatpak
+flatpak install --user lettera.flatpak
+```
+
+Start it from the application menu or with `flatpak run com.atomicgrove.lettera`. The GNOME runtime it needs comes from Flathub, which is added on the way if missing. To update, download and install the newer file the same way.
+
+*Requirements* and *Building* below are only for building lettera yourself.
+
 ## Requirements
 
 Building needs **Rust** (recent stable, via rustup), **Node.js** (≥ 22), [`just`](https://github.com/casey/just) and the Tauri CLI:
@@ -44,7 +57,7 @@ System libraries (WebKitGTK 4.1 for the window, Secret Service for the keyring):
 
 On Linux a running Secret Service (gnome-keyring or KWallet) is required: passwords and tokens are stored only there.
 
-## Installation
+## Building
 
 ```sh
 git clone <this repository> lettera && cd lettera
@@ -62,10 +75,10 @@ install -Dm755 target/release/lettera ~/.local/bin/lettera
 ```sh
 just flatpak                                  # builds lettera.flatpak
 flatpak install --user lettera.flatpak
-flatpak run app.lettera.desktop
+flatpak run com.atomicgrove.lettera
 ```
 
-This needs `flatpak` with the Flathub remote; the recipe uses `org.flatpak.Builder` and fetches GNOME 51, Rust and Node for the build by itself. Inside the sandbox, config and database live in `~/.var/app/app.lettera.desktop/` (separate from a native install); the app can read the Omarchy theme, use the keyring, notifications and the tray, write its own entry in `~/.config/autostart`, and save or attach files from Downloads, Documents, Pictures and Desktop.
+This needs `flatpak` with the Flathub remote; the recipe uses `org.flatpak.Builder` and fetches GNOME 51, Rust and Node for the build by itself. Inside the sandbox, config and database live in `~/.var/app/com.atomicgrove.lettera/` (separate from a native install); the app can read the Omarchy theme, use the keyring, notifications and the tray, write its own entry in `~/.config/autostart`, and save or attach files from Downloads, Documents, Pictures and Desktop.
 
 For development: `just dev` (window with live reload), `just test`, `just lint`, `just fmt`.
 

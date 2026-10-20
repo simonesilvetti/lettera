@@ -1,19 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>app.lettera.desktop</id>
+  <id>com.atomicgrove.lettera</id>
   <name>lettera</name>
   <summary>A minimal, text-first email client</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
-  <developer id="app.lettera">
+  <developer id="com.atomicgrove">
     <name>Simone Silvetti</name>
   </developer>
   <url type="homepage">https://simonesilvetti.com</url>
+  <url type="vcs-browser">https://github.com/simonesilvetti/lettera</url>
+  <url type="bugtracker">https://github.com/simonesilvetti/lettera/issues</url>
   <description>
     <p>A minimal desktop email client for IMAP and Google accounts: plain-text reading,
     search, archiving, replies and keyboard shortcuts. It follows the Omarchy theme.</p>
   </description>
-  <launchable type="desktop-id">app.lettera.desktop.desktop</launchable>
+  <launchable type="desktop-id">com.atomicgrove.lettera.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
     <release version="0.1.0" date="2026-10-19"/>
