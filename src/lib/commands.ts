@@ -307,7 +307,7 @@ export const commands: Command[] = [
 
   // ------------------------------------------------------------------ compose
   { id: 'send', label: 'send', shortcut: '⌃⏎', keys: ['ctrl+enter'], scope: 'compose', run: send },
-  { id: 'attach', label: 'attach', shortcut: '⌃a', keys: ['ctrl+a'], scope: 'compose', run: attach },
+  { id: 'attach', label: 'attach', shortcut: '⌃⇧a', keys: ['ctrl+shift+a'], scope: 'compose', run: attach },
   {
     id: 'bcc',
     label: 'bcc',

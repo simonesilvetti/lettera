@@ -139,14 +139,14 @@
     <div class="files">
       <span class="muted">attachments</span>
       {#if d.attachments.length === 0}
-        <button class="hint" onclick={() => runCommand('attach')}>none · <b>⌃a</b> to add</button>
+        <button class="hint" onclick={() => runCommand('attach')}>none · <b>⌃⇧a</b> to add</button>
       {:else}
         {#each d.attachments as path, i (path + i)}
           <button class="file" onclick={() => removeAttachment(i)} title="click to remove">
             {fileName(path)}
           </button>
         {/each}
-        <button class="hint" onclick={() => runCommand('attach')}><b>⌃a</b> add</button>
+        <button class="hint" onclick={() => runCommand('attach')}><b>⌃⇧a</b> add</button>
       {/if}
     </div>
   </div>

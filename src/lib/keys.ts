@@ -7,14 +7,15 @@ const PREFIXES = new Set(['g']);
 let pending: string | null = null;
 let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** "j", "G", "#", "enter", "ctrl+enter", "ctrl+1", "shift+tab"… */
+/** "j", "G", "#", "enter", "ctrl+enter", "ctrl+1", "shift+tab", "ctrl+shift+a"… */
 export function keyName(e: KeyboardEvent): string {
   let key = e.key === ' ' ? 'space' : e.key;
   if (key.length > 1) key = key.toLowerCase();
   const mods: string[] = [];
   if (e.ctrlKey || e.metaKey) mods.push('ctrl');
   if (e.altKey) mods.push('alt');
-  if (e.shiftKey && key.length > 1) mods.push('shift');
+  // shift is part of a letter's case, except with ctrl (ctrl+a and ctrl+shift+a differ)
+  if (e.shiftKey && (key.length > 1 || mods.includes('ctrl'))) mods.push('shift');
   if (mods.includes('ctrl') && key.length === 1) key = key.toLowerCase();
   if (mods.includes('ctrl') && /^digit\d$/i.test(e.code)) key = e.code.slice(5);
   return [...mods, key].join('+');
