@@ -113,6 +113,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Virtual list with fixed-height rows (38 px), group headers included.
 - The palette shows only the commands available in context; navigation keys are not listed.
 - `:info` shows the wordmark, version, license and config path.
+- License GPL-3.0-or-later (not MIT): lettera and works based on it stay free software; proprietary software cannot take it in. Every dependency is under a GPLv3-compatible license (2026-10-20).
 - The top bar has the icon and the wordmark centred on the window, drawn with theme tokens (envelope in `--accent`, typewriter and wordmark in `--fg`), hidden while searching; clicking it opens `:info`.
 - Folders with a role get English labels (inbox, sent, drafts, trash, archive, spam, all mail).
 - Dates in the list: the year appears only if it is not the current one.

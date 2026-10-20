@@ -4,7 +4,7 @@
   <name>lettera</name>
   <summary>A minimal, text-first email client</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>MIT</project_license>
+  <project_license>GPL-3.0-or-later</project_license>
   <developer id="app.lettera">
     <name>Simone Silvetti</name>
   </developer>

@@ -241,4 +241,6 @@ Tests: `just test` runs unit tests, parsing of 14 `.eml` fixtures, threading, sy
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The Special Elite font in `assets/fonts/` ships with its own Apache 2.0 license.
+Copyright © 2026 Simone Silvetti ([simonesilvetti.com](https://simonesilvetti.com)).
+
+lettera is free software under the [GNU General Public License v3.0 or later](LICENSE): anyone may use it for any purpose, study it, change it and share it. Whoever distributes lettera or a work based on it must release it under the same license, with its source code: it cannot become part of proprietary software. The Special Elite font in `assets/fonts/` ships with its own Apache 2.0 license.
