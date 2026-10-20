@@ -4,7 +4,7 @@
   <img src="assets/wordmark.svg" height="40" alt="lettera">
 </p>
 
-**lettera** is a minimal desktop email client: monospace type, thin 1px rules, no icons, no menus. It is driven from the keyboard; anything without a shortcut lives in the command palette (`:`). Every key hint on screen can also be clicked.
+**lettera** is a minimal desktop email client: monospace type, thin 1px rules, no menus and only a few icons (the folders on the left, the logo, a paperclip for attachments). It is driven from the keyboard; anything without a shortcut lives in the command palette (`:`). Every key hint on screen can also be clicked.
 
 It supports two kinds of accounts, side by side:
 
