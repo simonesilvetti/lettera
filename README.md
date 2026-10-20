@@ -93,7 +93,7 @@ Simone Silvetti
 """
 
 [[accounts]]
-name = "Work"                      # shown in the app and used as sender name
+name = "Mario Rossi"               # sender name recipients see, also shown in the app
 type = "imap"
 email = "name@example.com"
 imap_host = "imap.example.com"
@@ -108,7 +108,7 @@ smtp_port = 465                    # 465 = implicit TLS, other ports = STARTTLS
 # the password lives in the system keyring, never in this file
 
 [[accounts]]
-name = "Gmail"
+name = "Mario Rossi"
 type = "google"
 email = "name@gmail.com"
 client_id = "1234567890-abc.apps.googleusercontent.com"

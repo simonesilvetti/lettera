@@ -121,7 +121,7 @@
         <button type="button" class:on={kind === 'imap'} onclick={() => (kind = 'imap')}>imap</button>
       </span>
     </div>
-    <label class="row"><span class="muted">name</span><input bind:this={first} bind:value={name} placeholder="Work" /></label>
+    <label class="row"><span class="muted">name</span><input bind:this={first} bind:value={name} placeholder="your name, as recipients see it" required /></label>
     <label class="row">
       <span class="muted">email</span>
       <input

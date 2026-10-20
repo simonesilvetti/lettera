@@ -304,7 +304,7 @@ autostart = true          # start with the desktop session, hidden in the tray (
 # Accounts are added from the app (":" then "add account") or by hand:
 #
 # [[accounts]]
-# name = "Work"                    # shown in the app and used as sender name
+# name = "Mario Rossi"             # sender name recipients see, also shown in the app
 # type = "imap"                    # imap | google
 # email = "name@example.com"
 # imap_host = "imap.example.com"
