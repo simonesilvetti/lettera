@@ -697,11 +697,16 @@ export async function keepDraft() {
 
 export async function attach() {
   if (!app.draft) return;
-  const files = await api.pickFiles();
-  if (files.length) {
-    app.draft.attachments = [...app.draft.attachments, ...files];
-    touchDraft();
-  }
+  addAttachments(await api.pickFiles());
+}
+
+/** Files picked or dropped on the composer; a file already attached is not added twice. */
+export function addAttachments(paths: string[]) {
+  if (!app.draft) return;
+  const fresh = paths.filter((p, i) => !app.draft!.attachments.includes(p) && paths.indexOf(p) === i);
+  if (!fresh.length) return;
+  app.draft.attachments = [...app.draft.attachments, ...fresh];
+  touchDraft();
 }
 
 export function removeAttachment(i: number) {

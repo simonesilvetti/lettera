@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { getCurrentWebview } from '@tauri-apps/api/webview';
   import { onMount } from 'svelte';
   import StatusLine from './StatusLine.svelte';
   import { api } from './lib/api';
   import { runCommand } from './lib/commands';
-  import { app, clock, fileName, removeAttachment, touchDraft } from './lib/state.svelte';
+  import { addAttachments, app, clock, fileName, removeAttachment, touchDraft } from './lib/state.svelte';
   import type { Addr } from './lib/types';
 
   type Field = 'to' | 'cc' | 'bcc';
@@ -14,6 +15,7 @@
   let pick = $state(0);
   let first = $state<HTMLInputElement>();
   let bodyEl = $state<HTMLTextAreaElement>();
+  let dropping = $state(false);
 
   const title = $derived.by(() => {
     if (d.kind === 'new') return 'new message';
@@ -27,6 +29,12 @@
     bodyEl?.setSelectionRange(0, 0);
     if (d.kind === 'new' || d.kind === 'forward' || !d.to) first?.focus();
     else bodyEl?.focus();
+    // files dragged from the desktop onto the window become attachments
+    const unlisten = getCurrentWebview().onDragDropEvent(({ payload }) => {
+      dropping = payload.type === 'enter' || payload.type === 'over';
+      if (payload.type === 'drop') addAttachments(payload.paths);
+    });
+    return () => void unlisten.then((f) => f());
   });
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -136,8 +144,8 @@
       {/if}
     {/if}
 
-    <div class="files">
-      <span class="muted">attachments</span>
+    <div class="files" class:dropping>
+      <span class="muted">{dropping ? 'drop to attach' : 'attachments'}</span>
       {#if d.attachments.length === 0}
         <button class="hint" onclick={() => runCommand('attach')}>none · <b>⌃⇧a</b> to add</button>
       {:else}
@@ -246,6 +254,14 @@
     gap: 12px;
     padding: 10px 16px;
     border-top: var(--line);
+  }
+
+  .files.dropping {
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  .files.dropping span {
+    color: var(--accent);
   }
 
   .file:hover {
