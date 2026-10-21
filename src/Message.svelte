@@ -105,6 +105,12 @@
     {#if !body || !body.ready}
       <p class="muted body">loading…</p>
     {:else if html && body.html}
+      {#if body.blocked_images}
+        <p class="blocked muted">
+          {body.blocked_images} remote {body.blocked_images === 1 ? 'image' : 'images'} blocked ·
+          <button class="hint" onclick={() => run('images')}><b>m</b> load</button>
+        </p>
+      {/if}
       <!-- allow-scripts is what lets WebKit run our click listener inside the
            frame (without it links do nothing); the email itself still cannot run
            code: scripts and handlers are stripped when stored and the document's
@@ -270,6 +276,19 @@
 
   .quote {
     margin-top: 0.5em;
+  }
+
+  .blocked {
+    margin-top: 18px;
+    font-size: var(--fs-small);
+  }
+
+  .blocked button:hover b {
+    color: var(--accent);
+  }
+
+  .blocked + iframe {
+    margin-top: 8px;
   }
 
   iframe {

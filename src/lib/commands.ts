@@ -186,7 +186,21 @@ export const commands: Command[] = [
     when: () => !!cursorMessage() && !!app.htmlMode[cursorMessage()!.id],
     run: () => toggleHtml(),
   },
-  { id: 'images', label: 'enable images', alias: 'images', scope: 'thread', when: () => !!cursorMessage(), run: () => enableImages() },
+  {
+    id: 'images',
+    label: 'load images',
+    alias: 'enable remote pictures',
+    shortcut: 'm',
+    keys: ['m'],
+    scope: 'thread',
+    // from reading mode too (it switches to the html); hidden once loaded
+    when: () => {
+      const id = cursorMessage()?.id;
+      const b = app.bodies[id ?? -1];
+      return !!b?.has_html && !(app.htmlMode[id!] && b.blocked_images === 0);
+    },
+    run: () => enableImages(),
+  },
   {
     id: 'save-attachment',
     label: 'save attachment…',

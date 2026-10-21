@@ -1242,7 +1242,7 @@ impl Engine {
                 let has_html = html.is_some();
                 if mode == "html" {
                     let allow = lock(&self.inner.images).contains(&id);
-                    let doc = html
+                    let (doc, blocked_images) = html
                         .map(|h| reading::html_document(&h, allow))
                         .unwrap_or_else(|| {
                             reading::html_document(&format!("<pre>{}</pre>", escape(&text)), false)
@@ -1253,6 +1253,7 @@ impl Engine {
                         blocks: Vec::new(),
                         html: Some(doc),
                         has_html,
+                        blocked_images,
                     })
                 } else {
                     Ok(BodyView {
@@ -1261,6 +1262,7 @@ impl Engine {
                         blocks: reading::blocks(&text),
                         html: None,
                         has_html,
+                        blocked_images: 0,
                     })
                 }
             }
@@ -1273,6 +1275,7 @@ impl Engine {
                     blocks: Vec::new(),
                     html: None,
                     has_html: false,
+                    blocked_images: 0,
                 })
             }
         }

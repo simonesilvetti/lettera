@@ -371,7 +371,7 @@ export async function enableImages(id = cursorMessage()?.id) {
   await api.enableImages(id);
   app.htmlMode[id] = true;
   await loadBody(id);
-  flash('images enabled for this message');
+  flash('images loaded for this message');
 }
 
 let prefetchTimer: ReturnType<typeof setTimeout> | undefined;

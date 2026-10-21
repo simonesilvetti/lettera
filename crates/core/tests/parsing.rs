@@ -70,8 +70,9 @@ fn html_only_is_sanitized_and_converted() {
     assert!(body.text.contains("4815"));
     assert!(body.text.contains("spedito"));
     assert!(!body.text.contains("alert"));
-    let doc = reading::html_document(&html, false);
+    let (doc, blocked) = reading::html_document(&html, false);
     assert!(!doc.contains("pixel.png"));
+    assert_eq!(blocked, 1);
 }
 
 #[test]

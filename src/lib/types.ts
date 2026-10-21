@@ -80,6 +80,8 @@ export interface BodyView {
   blocks: Block[];
   html: string | null;
   has_html: boolean;
+  /** remote images left out of `html` until they are enabled */
+  blocked_images: number;
 }
 
 export interface AttachmentInfo {

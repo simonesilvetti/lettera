@@ -210,6 +210,7 @@ The same `›` and paperclip appear on each message inside an open conversation.
 | `/` | search (the list filters as you type, full-text search) |
 | `:` | command palette |
 | `v` | original HTML ↔ reading mode |
+| `m` | load the remote images of this message (blocked by default, so senders cannot tell when you read it) |
 | `o` | save the message's attachment |
 | `g i` `g a` `g s` `g t` `g d` | go to inbox, archive, sent, trash, drafts |
 | `g g` / `G` | top / end of list |
@@ -221,7 +222,7 @@ The column on the left holds inbox, drafts, sent and archive: click an icon to o
 
 The pane with focus has the accent-colored bar (selected row or current message); the other one keeps a muted bar. `⌃` is the Ctrl key (Cmd on macOS). While composing: `⌃⏎` send · `⌃s` save the draft and go back to the list · `⌃⇧a` attach (click an attachment's name to remove it; `⌃a` selects all the text, as usual) · `⌃b` show the bcc field · `⌃q` show the quote · `esc` close and keep the draft · `⌃d` twice to discard it. Drafts save themselves every 5 seconds; when you close the composer they go to the server's Drafts folder, so other clients see them too. `c` always starts a new message (`r`/`a`/`f` on a message resume the reply or forward already started there). To continue a draft, open it in the Drafts folder (`g d`) and press `i` (*edit draft*, also shown under the message); drafts written in other clients open the same way.
 
-No shortcut fires while you type in a field, except `esc` and `⌃` combinations. Every command, including those without a key (`move to…`, `go to folder…`, `switch account…`, `open config`, `enable images`, `info`…), is in the palette.
+No shortcut fires while you type in a field, except `esc` and `⌃` combinations. Every command, including those without a key (`move to…`, `go to folder…`, `switch account…`, `open config`, `info`…), is in the palette.
 
 Every key hint (the bottom bar, the actions under a message, the compose screen) is also a button: clicking it does the same as the shortcut. Hints that are not available right now are dimmed. The sync status at the bottom right is a button too: click it to sync now (same as `R`).
 

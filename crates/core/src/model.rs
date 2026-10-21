@@ -120,6 +120,8 @@ pub struct BodyView {
     /// Complete `srcdoc` for the sandboxed iframe (mode = "html" only).
     pub html: Option<String>,
     pub has_html: bool,
+    /// Remote images left out of `html` until `enable_images`.
+    pub blocked_images: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]

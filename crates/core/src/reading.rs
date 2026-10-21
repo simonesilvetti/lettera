@@ -1,6 +1,8 @@
 //! Reading mode: quote detection, snippets and HTML sanitization.
 
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use crate::model::{Block, BlockKind};
 
@@ -169,17 +171,26 @@ fn unsafe_css(style: &str) -> bool {
     .any(|bad| s.contains(bad))
 }
 
-/// View-time document for the sandboxed iframe. The CSP blocks every network
-/// request unless images were explicitly enabled for this message.
-pub fn html_document(sanitized: &str, allow_images: bool) -> String {
+/// View-time document for the sandboxed iframe, with the number of remote
+/// images left out. The CSP blocks every network request unless images were
+/// explicitly enabled for this message.
+pub fn html_document(sanitized: &str, allow_images: bool) -> (String, usize) {
+    // ammonia wants a 'static callback, hence the Arc
+    let blocked = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&blocked);
     let body = if allow_images {
         sanitized.to_string()
     } else {
         ammonia::Builder::default()
             .add_generic_attributes(PRESENTATION_ATTRS.iter().copied())
             .add_tags(["font", "center"])
-            .attribute_filter(|element, attribute, value| {
+            .attribute_filter(move |element, attribute, value| {
                 if element == "img" && attribute == "src" && !value.starts_with("data:") {
+                    // cid: parts would not load with images enabled either
+                    let v = value.trim_start().to_ascii_lowercase();
+                    if ["http:", "https:", "//"].iter().any(|p| v.starts_with(p)) {
+                        counter.fetch_add(1, Ordering::Relaxed);
+                    }
                     None
                 } else {
                     Some(value.into())
@@ -193,12 +204,13 @@ pub fn html_document(sanitized: &str, allow_images: bool) -> String {
     } else {
         "img-src data:;"
     };
-    format!(
+    let doc = format!(
         "<!doctype html><html><head><meta charset=\"utf-8\">\
 <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; {img_src} style-src 'unsafe-inline'; font-src data:;\">\
 <style>body{{margin:16px;font-family:sans-serif;font-size:14px;line-height:1.5;background:#fff;color:#111;word-wrap:break-word}}img{{max-width:100%;height:auto}}pre{{white-space:pre-wrap}}</style>\
 </head><body>{body}</body></html>"
-    )
+    );
+    (doc, blocked.load(Ordering::Relaxed))
 }
 
 #[cfg(test)]
@@ -248,11 +260,22 @@ mod tests {
         assert!(!clean.contains("script"));
         assert!(!clean.contains("onclick"));
         assert!(clean.contains("style=\"color:red\""));
-        let doc = html_document(&clean, false);
+        let (doc, blocked) = html_document(&clean, false);
         assert!(!doc.contains("t.example"));
         assert!(doc.contains("default-src 'none'"));
-        let doc = html_document(&clean, true);
+        assert_eq!(blocked, 1);
+        let (doc, blocked) = html_document(&clean, true);
         assert!(doc.contains("t.example"));
+        assert_eq!(blocked, 0);
+    }
+
+    #[test]
+    fn counts_only_remote_images() {
+        let clean = sanitize_html(
+            "<img src=\"https://a.example/1.png\"><img src=\"http://a.example/2.png\">\
+<img src=\"cid:logo\"><img src=\"data:image/png;base64,AAAA\">",
+        );
+        assert_eq!(html_document(&clean, false).1, 2);
     }
 
     /// Known XSS payloads: whatever survives sanitizing must be inert, since
@@ -288,7 +311,7 @@ mod tests {
             "<template><script>alert(1)</script></template>",
         ];
         for v in vectors {
-            let doc = html_document(&sanitize_html(v), true);
+            let (doc, _) = html_document(&sanitize_html(v), true);
             let body = doc.split("</head>").nth(1).unwrap_or(&doc).to_lowercase();
             for bad in [
                 "<script",
@@ -312,7 +335,7 @@ mod tests {
             }
         }
         // every rendered document carries the CSP that blocks scripts
-        let doc = html_document("<p>x</p>", true);
+        let (doc, _) = html_document("<p>x</p>", true);
         assert!(doc.contains("default-src 'none'") && !doc.contains("script-src"));
     }
 }
