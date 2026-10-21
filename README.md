@@ -100,6 +100,7 @@ theme = "auto"            # auto | omarchy | dark | light
 font = "JetBrains Mono"   # any installed monospace font
 font_size = 13            # interface size in px; message bodies are 1px larger
 sync_months = 48          # months of mail kept in sync, by arrival date (0 = all of it)
+# protection = true       # false: links open as they are in the mail, m loads every image (tracking pixels are always removed)
 signature = """
 Simone Silvetti
 +39 333 1234567
@@ -210,7 +211,10 @@ The same `›` and paperclip appear on each message inside an open conversation.
 | `/` | search (the list filters as you type, full-text search) |
 | `:` | command palette |
 | `v` | original HTML ↔ reading mode |
-| `m` | load the remote images of this message (blocked by default, so senders cannot tell when you read it) |
+| `m` | load the remote images of this message (blocked by default, see [Privacy](#privacy)) |
+| `M` | load all of them, including those that carry a code for you (with protection on) |
+| `t` | privacy report of the message |
+| `P` | protection on/off |
 | `o` | save the message's attachment |
 | `g i` `g a` `g s` `g t` `g d` | go to inbox, archive, sent, trash, drafts |
 | `g g` / `G` | top / end of list |
@@ -227,6 +231,19 @@ No shortcut fires while you type in a field, except `esc` and `⌃` combinations
 Every key hint (the bottom bar, the actions under a message, the compose screen) is also a button: clicking it does the same as the shortcut. Hints that are not available right now are dimmed. The sync status at the bottom right is a button too: click it to sync now (same as `R`).
 
 The border between the list and the thread can be dragged with the mouse; double-click it to restore the default width. The width is remembered.
+
+## Privacy
+
+Opening an email can tell the sender a lot: an invisible *tracking pixel* reports when you opened it and from which IP, and links carry codes that say who clicked. lettera keeps that to a minimum, without touching the mail itself (on the server and in the database it stays as it arrived).
+
+- **Remote images** are blocked until you ask: with the original HTML (`v`) a line says how many are held back, and `m` loads them for that message.
+- **Tracking pixels** are always removed, whatever the settings: 1×1, zero-sized or hidden images, and addresses known to serve them. They show nothing, so nothing is lost. The line above the message counts them.
+- **Protection** (on by default; `◉ protected` in the top bar, `P` or a click to switch it): links open without their tracking parameters (`utm_*`, `trk`, `fbclid`, LinkedIn's personal codes…), redirects that carry their destination open straight to it, the addresses shown in reading mode are the clean ones, and `m` loads only the images that are the same for everyone (`M` loads the rest). After a cleaned link, a short note says so. `⇧click` opens a link exactly as it is in the mail.
+- **Privacy report** (`t`): what in this message can track you — pixels, images with a code for you, links with personal codes or through click counters — and which platform sent it (SendGrid, Mailchimp, the sender's own servers…). It is a heuristic: it says *likely*, and can be wrong both ways.
+
+What lettera cannot hide: the images you load still tell their server your IP and the time; links through an opaque click counter (`click.example.com/…`) cannot be cleaned without visiting them; links that need their codes (unsubscribe, confirm, sign in) are left as they are, and unknown parameters are kept, so a cleaned link may ask you to sign in or lose its context — `⇧click` gives the original. lettera protects only what happens in lettera: the same mail opened in another client is tracked there.
+
+With protection off (`protection = false` in the config, or `P`) links open as they are and `m` loads every image; tracking pixels are still removed.
 
 ## The Omarchy theme
 
@@ -250,6 +267,7 @@ Tests: `just test` runs unit tests, parsing of 14 `.eml` fixtures, threading, sy
 - Search works on the current folder and finds body text only for messages whose body has been downloaded (automatic prefetch of the last 30 days of INBOX).
 - Non-ASCII folder names in modified UTF-7 are shown as they arrive.
 - Inline `cid:` images of the original HTML are not shown.
+- Tracking detection is heuristic (see [Privacy](#privacy)).
 - Shortcuts are not configurable; a single window.
 - Tested on Linux (Omarchy/Hyprland); on macOS it builds without platform-specific code but has not been tried.
 

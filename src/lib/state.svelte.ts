@@ -12,6 +12,7 @@ import type {
   DraftKind,
   FolderInfo,
   MessageView,
+  PrivacyReport,
   SyncStatus,
   ThemePayload,
   ThreadSummary,
@@ -63,6 +64,11 @@ class AppState {
   htmlMode = $state<Record<number, boolean>>({});
   attachments = $state<Record<number, AttachmentInfo[]>>({});
   quotes = $state<Record<string, boolean>>({});
+  /** links open without tracking, `m` loads only generic images */
+  protection = $state(true);
+  reportOpen = $state<Record<number, boolean>>({});
+  /** null while it is being read */
+  reports = $state<Record<number, PrivacyReport | null>>({});
 
   palette = $state<PaletteState | null>(null);
   draft = $state<Draft | null>(null);
@@ -366,12 +372,62 @@ export async function toggleHtml(id = cursorMessage()?.id) {
   await loadBody(id);
 }
 
-export async function enableImages(id = cursorMessage()?.id) {
+/** Remote images of the message: those the protection allows, or with
+ *  `all` every one. Tracking pixels never load. */
+export async function enableImages(id = cursorMessage()?.id, all = false) {
   if (id === undefined) return;
-  await api.enableImages(id);
+  await api.enableImages(id, all);
   app.htmlMode[id] = true;
+  app.expanded[id] = true;
   await loadBody(id);
-  flash('images loaded for this message');
+  const b = app.bodies[id];
+  if (b?.blocked_images) flash(`${b.blocked_images} that could identify you still blocked · M to load them too`);
+}
+
+export async function toggleReport(id = cursorMessage()?.id) {
+  if (id === undefined) return;
+  app.reportOpen[id] = !app.reportOpen[id];
+  app.expanded[id] = true;
+  if (!app.reportOpen[id] || app.reports[id]) return;
+  app.reports[id] = null;
+  try {
+    app.reports[id] = await api.privacyReport(id);
+  } catch (e) {
+    delete app.reports[id];
+    app.reportOpen[id] = false;
+    fail(e);
+  }
+}
+
+/** Opens a link in the browser: without its tracking when the protection is
+ *  on, unless `original` (⇧click). */
+export async function openLink(url: string, original = false) {
+  try {
+    const cleaned = await api.openUrl(url, app.protection && !original);
+    if (cleaned) flash('opened without tracking · ⇧click for the original');
+  } catch (e) {
+    fail(e);
+  }
+}
+
+/** Reads the protection from the config; open messages follow a change. */
+export async function loadProtection() {
+  const on = await api.getProtection();
+  if (on === app.protection) return;
+  app.protection = on;
+  for (const id of Object.keys(app.bodies).map(Number)) {
+    if (app.bodies[id]?.ready) void loadBody(id);
+  }
+}
+
+export async function toggleProtection() {
+  try {
+    await api.setProtection(!app.protection);
+    await loadProtection();
+    flash(app.protection ? 'protection on: links open without tracking' : 'protection off: links open as they are');
+  } catch (e) {
+    fail(e);
+  }
 }
 
 let prefetchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -750,6 +806,7 @@ export function applyTheme(t: ThemePayload) {
 
 export async function start() {
   applyTheme(await api.getTheme());
+  app.protection = await api.getProtection();
   await on('theme:changed', applyTheme);
   await on('sync:status', (s) => {
     app.status[s.account] = s;
@@ -770,7 +827,11 @@ export async function start() {
   await on('body:ready', ({ id }) => {
     if (app.bodies[id] || app.thread?.messages.some((m) => m.id === id)) void loadBody(id);
   });
-  await on('accounts:changed', () => void loadAccounts());
+  // emitted on every config change, `protection` included
+  await on('accounts:changed', () => {
+    void loadAccounts();
+    void loadProtection().catch(fail);
+  });
   await on('open_message', ({ account, id }) => void openMessage(account, id));
   await on('tray:compose', () => {
     if (app.screen === 'inbox') void compose('new');

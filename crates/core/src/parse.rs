@@ -37,6 +37,8 @@ pub struct ParsedBody {
     pub html: Option<String>,
     pub attachments: Vec<AttachmentMeta>,
     pub snippet: String,
+    /// The raw header block, read by the privacy report (`privacy::sent_via`).
+    pub headers: Option<String>,
 }
 
 fn addrs(a: Option<&Address>) -> Vec<Addr> {
@@ -218,6 +220,7 @@ pub fn parse_body(raw: &[u8]) -> ParsedBody {
             text,
             html: None,
             attachments: Vec::new(),
+            headers: None,
         };
     };
     let html = if m.html_body_count() > 0 {
@@ -244,6 +247,7 @@ pub fn parse_body(raw: &[u8]) -> ParsedBody {
         text,
         html,
         attachments: attachment_list(&m),
+        headers: Some(crate::privacy::header_block(raw)),
     }
 }
 

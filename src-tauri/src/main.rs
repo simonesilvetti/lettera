@@ -432,14 +432,22 @@ fn openable(url: &str) -> bool {
         && !url.chars().any(char::is_control)
 }
 
+/// Opens a link in the browser; with `clean`, without its tracking (see
+/// `privacy::clean`). Returns whether the link was changed.
 #[tauri::command(rename_all = "snake_case")]
-fn open_url(app: AppHandle, url: String) -> Res<()> {
-    if !openable(&url) {
-        return Err(format!("unsupported link: {url}"));
+fn open_url(app: AppHandle, url: String, clean: Option<bool>) -> Res<bool> {
+    let target = if clean.unwrap_or(false) {
+        lettera_core::privacy::clean(&url).url
+    } else {
+        url.clone()
+    };
+    if !openable(&target) {
+        return Err(format!("unsupported link: {target}"));
     }
     app.opener()
-        .open_url(url.trim_start(), None::<&str>)
-        .map_err(err)
+        .open_url(target.trim_start(), None::<&str>)
+        .map_err(err)?;
+    Ok(target != url)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -448,8 +456,26 @@ fn start_google_auth(engine: State<Engine>, account: NewAccount) -> Res<()> {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-fn enable_images(engine: State<Engine>, message_id: i64) {
-    engine.enable_images(message_id);
+fn enable_images(engine: State<Engine>, message_id: i64, all: Option<bool>) {
+    engine.enable_images(message_id, all.unwrap_or(false));
+}
+
+#[tauri::command(rename_all = "snake_case")]
+async fn privacy_report(
+    engine: State<'_, Engine>,
+    message_id: i64,
+) -> Res<lettera_core::privacy::Report> {
+    engine.privacy_report(message_id).await.map_err(err)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn get_protection(engine: State<Engine>) -> bool {
+    engine.protection()
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn set_protection(engine: State<Engine>, on: bool) -> Res<()> {
+    engine.set_protection(on).map_err(err)
 }
 
 #[tauri::command(async, rename_all = "snake_case")]
@@ -578,6 +604,9 @@ fn main() -> anyhow::Result<()> {
             open_url,
             start_google_auth,
             enable_images,
+            privacy_report,
+            get_protection,
+            set_protection,
             suggest_contacts,
             app_info,
             quit,

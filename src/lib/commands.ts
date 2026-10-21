@@ -41,6 +41,8 @@ import {
   toggleExpanded,
   toggleFlag,
   toggleHtml,
+  toggleProtection,
+  toggleReport,
 } from './state.svelte';
 
 /** Where a command is available. */
@@ -64,6 +66,7 @@ export interface Command {
 
 const hasThread = () => !!app.items[app.selected];
 const inThread = () => !!app.thread;
+const cursorBody = () => app.bodies[cursorMessage()?.id ?? -1];
 
 function folderItems(run: (id: number) => unknown, exclude?: number) {
   return app.folders
@@ -193,13 +196,37 @@ export const commands: Command[] = [
     shortcut: 'm',
     keys: ['m'],
     scope: 'thread',
-    // from reading mode too (it switches to the html); hidden once loaded
+    // from reading mode too (it switches to the html); gone once asked for
     when: () => {
-      const id = cursorMessage()?.id;
-      const b = app.bodies[id ?? -1];
-      return !!b?.has_html && !(app.htmlMode[id!] && b.blocked_images === 0);
+      const b = cursorBody();
+      return !!b?.has_html && !(app.htmlMode[b.id] && b.images !== 'blocked');
     },
     run: () => enableImages(),
+  },
+  {
+    id: 'images-all',
+    label: 'load all images',
+    alias: 'enable remote pictures personal',
+    shortcut: 'M',
+    keys: ['M'],
+    scope: 'thread',
+    // with protection off `m` already loads them all
+    when: () => {
+      const b = cursorBody();
+      if (!b?.has_html || !app.protection) return false;
+      return !app.htmlMode[b.id] || b.images === 'blocked' || b.blocked_images > 0;
+    },
+    run: () => enableImages(undefined, true),
+  },
+  {
+    id: 'report',
+    label: 'privacy report',
+    alias: 'tracking pixels links',
+    shortcut: 't',
+    keys: ['t'],
+    scope: 'thread',
+    when: () => !!cursorBody()?.ready,
+    run: () => toggleReport(),
   },
   {
     id: 'save-attachment',
@@ -253,6 +280,15 @@ export const commands: Command[] = [
     when: () => !!app.accounts[i] && app.screen === 'inbox',
     run: () => selectAccount(app.accounts[i].email),
   })),
+  {
+    id: 'protection',
+    label: 'toggle protection',
+    alias: 'privacy tracking links images',
+    shortcut: 'P',
+    keys: ['P'],
+    scope: 'mail',
+    run: toggleProtection,
+  },
   { id: 'sync', label: 'sync now', shortcut: 'R', keys: ['R'], scope: 'mail', run: syncNow },
   {
     id: 'add-account',

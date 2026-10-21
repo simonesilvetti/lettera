@@ -8,6 +8,7 @@
   import Rail from './Rail.svelte';
   import StatusLine from './StatusLine.svelte';
   import Thread from './Thread.svelte';
+  import { runCommand } from './lib/commands';
   import { handleKey } from './lib/keys';
   import { app, currentFolder, flash, folderLabel, setQuery, start } from './lib/state.svelte';
 
@@ -105,7 +106,19 @@
       {#if app.focus !== 'search' && !app.query}
         <div class="brand"><Brand /></div>
       {/if}
-      <span class="muted ellipsis">{app.account}</span>
+      <div class="right">
+        <button
+          class="protection"
+          class:off={!app.protection}
+          title={app.protection
+            ? 'links open without tracking, m loads only images that are the same for everyone (P to turn off)'
+            : 'links open as they are, m loads every image (P to turn on)'}
+          onclick={() => runCommand('protection')}
+        >
+          {app.protection ? '◉ protected' : '○ unprotected'}
+        </button>
+        <span class="muted ellipsis">{app.account}</span>
+      </div>
     </header>
     <div class="body">
       <Rail />
@@ -163,6 +176,27 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
+  }
+
+  .right {
+    display: flex;
+    gap: 16px;
+    align-items: baseline;
+    min-width: 0;
+  }
+
+  .protection {
+    flex: none;
+    white-space: nowrap;
+    color: var(--accent);
+  }
+
+  .protection.off {
+    color: var(--muted);
+  }
+
+  .protection:hover {
+    color: var(--fg);
   }
 
   .title {

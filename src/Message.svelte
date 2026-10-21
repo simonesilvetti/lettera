@@ -1,12 +1,12 @@
 <script lang="ts">
   import Clip from './Clip.svelte';
-  import { api } from './lib/api';
+  import Report from './Report.svelte';
   import { byId } from './lib/commands';
   import {
     app,
-    flash,
     isDraftMessage,
     longDate,
+    openLink,
     saveAttachment,
     shortDate,
     size,
@@ -46,9 +46,9 @@
     return out;
   }
 
-  function open(url: string) {
-    api.openUrl(url).catch((e) => flash(String(e), true));
-  }
+  // with protection on, addresses in the text are shown (and open) without tracking
+  const shown = (url: string) => (app.protection ? (body?.clean_links[url] ?? url) : url);
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
   function people(list: Addr[]) {
     return list.map((a) => a.name || a.addr).join(', ');
@@ -63,7 +63,7 @@
       if (!a) return;
       e.preventDefault();
       const href = a.getAttribute('href');
-      if (href) open(href);
+      if (href) void openLink(href, e.shiftKey);
     });
   }
 
@@ -102,13 +102,27 @@
       <span class="to-me" title={toMe ? 'sent to you' : undefined}>{toMe ? '›' : ''}</span>to {people(message.to) || '—'}{message.cc.length ? `, cc ${people(message.cc)}` : ''}
     </p>
 
+    {#if app.reportOpen[message.id]}
+      <Report report={app.reports[message.id] ?? null} protection={app.protection} />
+    {/if}
+
     {#if !body || !body.ready}
       <p class="muted body">loading…</p>
     {:else if html && body.html}
-      {#if body.blocked_images}
+      {#if body.blocked_images || body.pixels}
+        {@const pixels = body.pixels ? plural(body.pixels, 'tracking pixel') : ''}
         <p class="blocked muted">
-          {body.blocked_images} remote {body.blocked_images === 1 ? 'image' : 'images'} blocked ·
-          <button class="hint" onclick={() => run('images')}><b>m</b> load</button>
+          {#if body.blocked_images && body.images === 'blocked'}
+            {plural(body.blocked_images, 'remote image')} blocked{pixels ? ` (${pixels}, always removed)` : ''} ·
+            <button class="hint" onclick={() => run('images')}><b>m</b> load</button>
+          {:else if body.blocked_images}
+            {body.blocked_images} that could identify you blocked{pixels ? ` (${pixels}, always removed)` : ''} ·
+            <button class="hint" onclick={() => run('images-all')}><b>M</b> load all</button>
+          {:else}
+            {pixels} removed
+          {/if}
+          ·
+          <button class="hint" onclick={() => run('report')}><b>t</b> report</button>
         </p>
       {/if}
       <!-- allow-scripts is what lets WebKit run our click listener inside the
@@ -136,7 +150,7 @@
             {/if}
           {:else}
             <!-- prettier-ignore -->
-            <div class="text">{#each segments(block.text) as [chunk, link], s (s)}{#if link}<a href={chunk} onclick={(e) => (e.preventDefault(), open(chunk))}>{chunk}</a>{:else}{chunk}{/if}{/each}</div>
+            <div class="text">{#each segments(block.text) as [chunk, link], s (s)}{#if link}<a href={shown(chunk)} title={shown(chunk) === chunk ? undefined : 'without tracking · ⇧click for the original'} onclick={(e) => (e.preventDefault(), openLink(chunk, e.shiftKey))}>{shown(chunk)}</a>{:else}{chunk}{/if}{/each}</div>
           {/if}
         {/each}
         {#if body.blocks.length === 0}
@@ -173,6 +187,12 @@
         <span class="muted">·</span>
         <button class="hint" onclick={() => run(html ? 'reading' : 'html')}>
           <b>v</b> {html ? 'reading mode' : 'original html'}
+        </button>
+      {/if}
+      {#if body?.ready}
+        <span class="muted">·</span>
+        <button class="hint" onclick={() => run('report')}>
+          <b>t</b> {app.reportOpen[message.id] ? 'hide report' : 'privacy report'}
         </button>
       {/if}
     </div>

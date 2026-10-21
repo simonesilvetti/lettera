@@ -24,7 +24,9 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - Links open in the system browser only if `http`, `https` or `mailto`.
 - Original HTML: ammonia when stored (inline styles and presentational attributes allowed), remote images stripped and CSP `default-src 'none'` when shown.
 - iframe `sandbox="allow-same-origin allow-scripts"`: WebKit runs a parent-added click listener inside the frame only with `allow-scripts` (without it, links in HTML mode did nothing). The email still runs no code: ammonia strips scripts and handlers when stored and the frame's CSP is `default-src 'none'` (checked in WebKitGTK with an injected `<script>`, `onerror` and `javascript:` link). Every link click is intercepted and only `http`, `https`, `mailto` reach the browser.
-- `:enable images` applies to that message only and for the current session only.
+- Remote images load only on request (`m`), for that message and the current session. Tracking pixels (at most 1×1, zero-sized or hidden, or a known opening-pixel address) are always removed, in every mode: they show nothing to the reader.
+- Protection (`protection = true` by default, `P` or the top-bar toggle): links open without known tracking parameters (`utm_*`, `trk`, `fbclid`, LinkedIn's `midToken`/`otpToken`…) and redirects that carry their destination in the clear open straight to it; `m` loads only images whose address carries no code for the recipient (`M` loads the rest). Unknown parameters and links that need their codes (unsubscribe, confirm, login…) stay as they are; ⇧click opens the original. Opaque click counters cannot be resolved without visiting them, so they are only reported. One visible switch instead of separate options, so a user coming from another client knows why a link behaves differently.
+- Privacy report (`t`): heuristics on the stored HTML and headers, worded as likely, never as certain. The sending platform comes from the delivery headers (and DKIM `d=`), kept with each body since 2026-10-21; older bodies get them from the server when the report is first opened.
 - Tauri adds no nonce to `style-src` (`dangerousDisableAssetCspModification: ["style-src"]`): with a nonce the browser would ignore `'unsafe-inline'` and block inline styles (virtual list, email HTML). Scripts stay nonce-protected.
 - Gmail's "Application-specific password required" becomes a message with instructions for app passwords.
 - `save_attachment` takes no path from the webview: the destination always comes from the system dialog, so the UI cannot write files by itself.
@@ -101,7 +103,7 @@ Non-obvious choices, one line each. Where a choice was ambiguous, the simplest o
 - The whole app — interface, messages, errors, logs, config file, documentation — is in English.
 - Commands and shortcuts come from a single registry; shortcuts have a *scope* (list, thread, mail, compose, palette, search, global).
 - Tauri commands take snake_case arguments (`rename_all`), as in the spec.
-- Commands beyond the spec's list: `prepare_draft`, `discard_draft`, `pick_files`, `open_url`, `enable_images`, `suggest_contacts`, `app_info`; extra events: `body:ready`, `accounts:changed`.
+- Commands beyond the spec's list: `prepare_draft`, `discard_draft`, `pick_files`, `open_url`, `enable_images`, `privacy_report`, `get_protection`, `set_protection`, `suggest_contacts`, `app_info`; extra events: `body:ready`, `accounts:changed`.
 - Key hints are also buttons that run the registry command; disabled when the command is not available.
 - Removing an attachment while composing: click its name. Files dragged onto the window while composing are attached (Tauri's native drop event, which gives real paths; the HTML5 drop would only give file contents). In Flatpak lettera also asks the file manager for the file transfer portal's copy of the files, which the sandbox can read, instead of widening its filesystem access.
 - The sync status in the bottom bar is a button for `sync now`.

@@ -117,17 +117,30 @@ async fn call(e: &Engine, cmd: &str, a: &Value, log: &Log) -> Result<Value, Stri
             Ok(json!(path.display().to_string()))
         }
         "open_url" => {
-            note(format!("open_url {}", arg::<String>(a, "url")?));
-            Ok(Value::Null)
+            let url = arg::<String>(a, "url")?;
+            let clean = arg::<Option<bool>>(a, "clean")?.unwrap_or(false);
+            let target = if clean {
+                lettera_core::privacy::clean(&url).url
+            } else {
+                url.clone()
+            };
+            note(format!("open_url {target}"));
+            Ok(json!(target != url))
         }
         "start_google_auth" => {
             note("start_google_auth".into());
             Ok(Value::Null)
         }
         "enable_images" => {
-            e.enable_images(arg(a, "message_id")?);
+            e.enable_images(
+                arg(a, "message_id")?,
+                arg::<Option<bool>>(a, "all")?.unwrap_or(false),
+            );
             Ok(Value::Null)
         }
+        "privacy_report" => to_json(e.privacy_report(arg(a, "message_id")?).await),
+        "get_protection" => to_json(Ok(e.protection())),
+        "set_protection" => to_json(e.set_protection(arg(a, "on")?)),
         "suggest_contacts" => to_json(e.suggest_contacts(&arg::<String>(a, "query")?)),
         "app_info" => Ok(json!({
             "name": "lettera",

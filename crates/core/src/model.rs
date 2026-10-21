@@ -111,7 +111,7 @@ pub struct Block {
     pub lines: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct BodyView {
     pub id: i64,
     /// `false` while the body is being downloaded; a `body:ready` event follows.
@@ -120,8 +120,15 @@ pub struct BodyView {
     /// Complete `srcdoc` for the sandboxed iframe (mode = "html" only).
     pub html: Option<String>,
     pub has_html: bool,
-    /// Remote images left out of `html` until `enable_images`.
+    /// Remote images held back in `html` (tracking pixels apart).
     pub blocked_images: usize,
+    /// Tracking pixels removed from `html`.
+    pub pixels: usize,
+    /// Which remote images `html` loads.
+    pub images: crate::privacy::Images,
+    /// Reading mode with protection on: the clean version of each address in
+    /// the text that has tracking in it.
+    pub clean_links: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

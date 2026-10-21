@@ -70,9 +70,10 @@ fn html_only_is_sanitized_and_converted() {
     assert!(body.text.contains("4815"));
     assert!(body.text.contains("spedito"));
     assert!(!body.text.contains("alert"));
-    let (doc, blocked) = reading::html_document(&html, false);
-    assert!(!doc.contains("pixel.png"));
-    assert_eq!(blocked, 1);
+    let v = reading::html_document(&html, lettera_core::privacy::Images::Blocked, "");
+    assert!(!v.html.contains("pixel.png"));
+    assert_eq!((v.blocked, v.pixels), (0, 1));
+    assert!(body.headers.is_some_and(|h| h.contains("Subject:")));
 }
 
 #[test]

@@ -24,6 +24,10 @@ pub struct Config {
     /// Start hidden in the tray with the desktop session (see [`crate::autostart`]).
     #[serde(default = "default_autostart")]
     pub autostart: bool,
+    /// Links open without their tracking and `m` loads only the images that
+    /// are the same for everyone (see [`crate::privacy`]).
+    #[serde(default = "default_protection")]
+    pub protection: bool,
     #[serde(default)]
     pub accounts: Vec<AccountConfig>,
 }
@@ -37,6 +41,7 @@ impl Default for Config {
             sync_months: default_sync_months(),
             signature: None,
             autostart: default_autostart(),
+            protection: default_protection(),
             accounts: Vec::new(),
         }
     }
@@ -55,6 +60,9 @@ fn default_sync_months() -> u32 {
     48
 }
 fn default_autostart() -> bool {
+    true
+}
+fn default_protection() -> bool {
     true
 }
 
@@ -293,6 +301,7 @@ font = "JetBrains Mono"   # any installed monospace font
 font_size = 13            # interface size in px; message bodies are 1px larger
 sync_months = 48          # months of mail kept in sync, by arrival date (0 = all of it)
 autostart = true          # start with the desktop session, hidden in the tray (false = only when opened)
+# protection = true       # false: links open as they are in the mail, m loads every image (tracking pixels are always removed)
 
 # Signature added to new messages, replies and forwards, after a "-- " line.
 # Each account can override it with its own `signature` ("" = none).
@@ -454,6 +463,75 @@ pub fn remove_account(text: &str, email: &str) -> String {
         .collect()
 }
 
+/// Sets a top-level option in the file text, keeping everything else: the
+/// line that sets it, or its commented placeholder, is replaced; otherwise
+/// the option goes after the last top-level setting.
+pub fn set_option(text: &str, key: &str, value: &str) -> String {
+    let base = if text.trim().is_empty() {
+        TEMPLATE
+    } else {
+        text
+    };
+    let mut lines: Vec<String> = base.lines().map(str::to_string).collect();
+    let top = lines
+        .iter()
+        .position(|l| l.trim_start().starts_with('['))
+        .unwrap_or(lines.len());
+    let sets = |l: &str, commented: bool| {
+        let l = l.trim_start();
+        let l = if commented {
+            match l.strip_prefix('#') {
+                Some(r) => r.trim_start(),
+                None => return false,
+            }
+        } else {
+            l
+        };
+        l.strip_prefix(key)
+            .is_some_and(|r| r.trim_start().starts_with('='))
+    };
+    let line = format!("{key} = {value}");
+    if let Some(i) = (0..top).find(|&i| sets(&lines[i], false)) {
+        lines[i] = line;
+    } else if let Some(i) = (0..top).find(|&i| sets(&lines[i], true)) {
+        lines[i] = with_comment_of(&line, &lines[i]);
+    } else {
+        // an older file: the explanation comes from the template's placeholder
+        let line = match TEMPLATE.lines().find(|l| sets(l, true)) {
+            Some(placeholder) => with_comment_of(&line, placeholder),
+            None => line,
+        };
+        let at = (0..top)
+            .rev()
+            .find(|&i| {
+                let l = lines[i].trim_start();
+                !l.starts_with('#') && l.contains('=')
+            })
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        lines.insert(at, line);
+    }
+    let mut out = lines.join("\n");
+    out.push('\n');
+    out
+}
+
+/// `line` followed by the trailing comment of a commented placeholder,
+/// aligned as it was.
+fn with_comment_of(line: &str, placeholder: &str) -> String {
+    let old = placeholder
+        .trim_start()
+        .trim_start_matches('#')
+        .trim_start();
+    match old.find(" #").map(|c| c + 1) {
+        Some(hash) => {
+            let col = hash.max(line.len() + 1);
+            format!("{line:<col$}{}", &old[hash..])
+        }
+        None => line.to_string(),
+    }
+}
+
 pub fn write(path: &Path, text: &str) -> Result<()> {
     if let Some(dir) = path.parent() {
         private_dir(dir)?;
@@ -525,6 +603,24 @@ client_secret = "secret"
         let smtp = g.smtp().unwrap();
         assert_eq!((smtp.port, smtp.implicit_tls), (587, false));
         g.validate().unwrap();
+    }
+
+    #[test]
+    fn set_option_replaces_placeholder_line_or_appends() {
+        // the template's placeholder becomes the setting, keeping its comment
+        let t = set_option(&template(), "protection", "false");
+        assert!(t.contains("\nprotection = false      # false: links open"));
+        assert!(!parse(&t).unwrap().protection);
+        let t = set_option(&t, "protection", "true");
+        assert!(parse(&t).unwrap().protection);
+        assert_eq!(t.matches("protection =").count(), 1);
+        // an older file without the placeholder: after the last setting, before accounts
+        let old = "theme = \"dark\"\n\n[[accounts]]\nname = \"A\"\ntype = \"imap\"\nemail = \"a@b.it\"\nimap_host = \"i\"\nsmtp_host = \"s\"\n";
+        let t = set_option(old, "protection", "false");
+        assert!(t.starts_with("theme = \"dark\"\nprotection = false      # false: links open"));
+        assert!(t.contains("removed)\n\n[[accounts]]"));
+        let c = parse(&t).unwrap();
+        assert!(!c.protection && c.accounts.len() == 1);
     }
 
     #[test]

@@ -80,8 +80,38 @@ export interface BodyView {
   blocks: Block[];
   html: string | null;
   has_html: boolean;
-  /** remote images left out of `html` until they are enabled */
+  /** remote images held back in `html` (tracking pixels apart) */
   blocked_images: number;
+  /** tracking pixels removed from `html`: always */
+  pixels: number;
+  /** which remote images `html` loads */
+  images: 'blocked' | 'safe' | 'all';
+  /** reading mode with protection on: address in the text → without tracking */
+  clean_links: Record<string, string>;
+}
+
+export interface HostCount {
+  host: string;
+  count: number;
+}
+
+export interface PrivacyReport {
+  pixels: HostCount[];
+  personal_images: HostCount[];
+  generic_images: HostCount[];
+  links: {
+    total: number;
+    /** with tracking parameters */
+    personal: number;
+    /** through a redirect whose destination is in the clear */
+    redirects: number;
+    /** through an opaque click counter */
+    counters: number;
+    params: string[];
+    counter_hosts: HostCount[];
+  };
+  /** null when the headers could not be read */
+  sent_via: { via: string; bulk: boolean } | null;
 }
 
 export interface AttachmentInfo {

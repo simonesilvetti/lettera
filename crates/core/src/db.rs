@@ -21,6 +21,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_init.sql"),
     include_str!("../migrations/0002_thread_index.sql"),
     include_str!("../migrations/0003_html_bodies_again.sql"),
+    include_str!("../migrations/0004_body_headers.sql"),
 ];
 
 pub struct Db {
@@ -671,6 +672,33 @@ impl Db {
             .optional()?)
     }
 
+    /// Header block stored with the body of a message (or of another copy of
+    /// it): `None` without a body, `Some(None)` for a body stored before
+    /// headers were kept.
+    pub fn body_headers(&self, id: i64) -> Result<Option<Option<String>>> {
+        Ok(self
+            .lock()
+            .query_row(
+                "SELECT b.headers FROM bodies b JOIN messages m ON m.id = b.message_id
+                 WHERE m.id = ?1 OR (m.account_id, m.message_id) =
+                    (SELECT account_id, message_id FROM messages WHERE id = ?1)
+                 ORDER BY b.headers IS NULL, m.id = ?1 DESC LIMIT 1",
+                [id],
+                |r| r.get(0),
+            )
+            .optional()?)
+    }
+
+    pub fn set_body_headers(&self, id: i64, headers: &str) -> Result<()> {
+        self.lock().execute(
+            "UPDATE bodies SET headers = ?2 WHERE message_id IN
+                (SELECT id FROM messages WHERE id = ?1 OR (account_id, message_id) =
+                    (SELECT account_id, message_id FROM messages WHERE id = ?1))",
+            params![id, headers],
+        )?;
+        Ok(())
+    }
+
     pub fn store_body(&self, id: i64, body: &ParsedBody) -> Result<()> {
         let mut c = self.lock();
         let tx = c.transaction()?;
@@ -995,8 +1023,8 @@ impl Db {
 /// Body, attachment list, snippet and full-text entry of a message.
 fn write_body(tx: &rusqlite::Transaction, id: i64, body: &ParsedBody) -> Result<()> {
     tx.execute(
-        "INSERT OR REPLACE INTO bodies (message_id, text, html) VALUES (?1, ?2, ?3)",
-        params![id, body.text, body.html],
+        "INSERT OR REPLACE INTO bodies (message_id, text, html, headers) VALUES (?1, ?2, ?3, ?4)",
+        params![id, body.text, body.html, body.headers],
     )?;
     tx.execute("DELETE FROM attachments WHERE message_id = ?1", [id])?;
     for a in &body.attachments {

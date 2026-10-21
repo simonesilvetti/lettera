@@ -10,6 +10,7 @@ pub mod imap;
 pub mod model;
 pub mod oauth;
 pub mod parse;
+pub mod privacy;
 pub mod reading;
 pub mod secrets;
 pub mod smtp;

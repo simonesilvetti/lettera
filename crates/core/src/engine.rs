@@ -22,6 +22,7 @@ use crate::model::{
 };
 use crate::oauth::{self, AccessToken};
 use crate::parse;
+use crate::privacy::{self, Images};
 use crate::reading;
 use crate::secrets;
 use crate::smtp::{self, Outgoing};
@@ -166,7 +167,9 @@ struct Inner {
     theme: Mutex<ThemePayload>,
     workers: Mutex<HashMap<String, Worker>>,
     tokens: tokio::sync::Mutex<HashMap<String, AccessToken>>,
-    images: Mutex<HashSet<i64>>,
+    /// Messages whose remote images were asked for: `true` = all of them,
+    /// `false` = those the protection allows (see `get_body`).
+    images: Mutex<HashMap<i64, bool>>,
     /// Contacts for autocompletion and when they were read (see `Db::contacts`).
     contacts: Mutex<Option<(Instant, Vec<Addr>)>>,
     /// Message ids whose body is queued or being downloaded.
@@ -962,7 +965,7 @@ impl Engine {
             theme: Mutex::new(theme),
             workers: Mutex::new(HashMap::new()),
             tokens: tokio::sync::Mutex::new(HashMap::new()),
-            images: Mutex::new(HashSet::new()),
+            images: Mutex::new(HashMap::new()),
             fetching: Mutex::new(HashSet::new()),
             contacts: Mutex::new(None),
             pending: Mutex::new(HashSet::new()),
@@ -1237,52 +1240,114 @@ impl Engine {
 
     pub fn get_body(&self, id: i64, mode: &str) -> Result<BodyView> {
         let m = self.inner.db.message(id)?;
-        match self.inner.db.body(id)? {
-            Some((text, html)) => {
-                let has_html = html.is_some();
-                if mode == "html" {
-                    let allow = lock(&self.inner.images).contains(&id);
-                    let (doc, blocked_images) = html
-                        .map(|h| reading::html_document(&h, allow))
-                        .unwrap_or_else(|| {
-                            reading::html_document(&format!("<pre>{}</pre>", escape(&text)), false)
-                        });
-                    Ok(BodyView {
-                        id,
-                        ready: true,
-                        blocks: Vec::new(),
-                        html: Some(doc),
-                        has_html,
-                        blocked_images,
-                    })
+        let me = self.inner.db.account_email(m.account_id)?;
+        let protection = self.protection();
+        let Some((text, html)) = self.inner.db.body(id)? else {
+            self.inner.request_bodies(&me, &[id])?;
+            return Ok(BodyView {
+                id,
+                ready: false,
+                ..BodyView::default()
+            });
+        };
+        let has_html = html.is_some();
+        if mode != "html" {
+            return Ok(BodyView {
+                id,
+                ready: true,
+                clean_links: if protection {
+                    privacy::clean_text_links(&text)
                 } else {
-                    Ok(BodyView {
-                        id,
-                        ready: true,
-                        blocks: reading::blocks(&text),
-                        html: None,
-                        has_html,
-                        blocked_images: 0,
-                    })
-                }
-            }
-            None => {
-                let email = self.inner.db.account_email(m.account_id)?;
-                self.inner.request_bodies(&email, &[id])?;
-                Ok(BodyView {
-                    id,
-                    ready: false,
-                    blocks: Vec::new(),
-                    html: None,
-                    has_html: false,
-                    blocked_images: 0,
-                })
-            }
+                    Default::default()
+                },
+                blocks: reading::blocks(&text),
+                has_html,
+                ..BodyView::default()
+            });
         }
+        // `m` loads what the protection allows; without protection, all of it
+        let images = match lock(&self.inner.images).get(&id) {
+            None => Images::Blocked,
+            Some(false) if protection => Images::Safe,
+            Some(_) => Images::All,
+        };
+        let view = match &html {
+            Some(h) => reading::html_document(h, images, &me),
+            None => reading::html_document(
+                &format!("<pre>{}</pre>", escape(&text)),
+                Images::Blocked,
+                &me,
+            ),
+        };
+        Ok(BodyView {
+            id,
+            ready: true,
+            html: Some(view.html),
+            has_html,
+            blocked_images: view.blocked,
+            pixels: view.pixels,
+            images,
+            ..BodyView::default()
+        })
     }
 
-    pub fn enable_images(&self, id: i64) {
-        lock(&self.inner.images).insert(id);
+    /// Lets the message load its remote images: those the protection allows,
+    /// or with `all` every one (tracking pixels never).
+    pub fn enable_images(&self, id: i64, all: bool) {
+        let mut images = lock(&self.inner.images);
+        let e = images.entry(id).or_insert(all);
+        *e |= all;
+    }
+
+    /// Whether links are cleaned and `m` loads only generic images
+    /// (`protection` in the config, on unless set to false).
+    pub fn protection(&self) -> bool {
+        self.inner
+            .config
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .protection
+    }
+
+    /// Turns the protection on or off, writing it to the config file.
+    pub fn set_protection(&self, on: bool) -> Result<()> {
+        self.write_config(|text| {
+            config::set_option(text, "protection", if on { "true" } else { "false" })
+        })
+    }
+
+    /// What tracks the reader in this message. Bodies downloaded before
+    /// headers were stored get them from the server here, once.
+    pub async fn privacy_report(&self, id: i64) -> Result<privacy::Report> {
+        let m = self.inner.db.message(id)?;
+        let me = self.inner.db.account_email(m.account_id)?;
+        let (text, html) = self
+            .inner
+            .db
+            .body(id)?
+            .ok_or_else(|| Error::NotFound("the message is still downloading".into()))?;
+        let headers = match self.inner.db.body_headers(id)?.flatten() {
+            Some(h) => Some(h),
+            None if m.uid < crate::db::LOCAL_UID_BASE => match self.raw_message(&m).await {
+                Ok(raw) => {
+                    let h = privacy::header_block(&raw);
+                    self.inner.db.set_body_headers(id, &h)?;
+                    Some(h)
+                }
+                Err(e) => {
+                    tracing::warn!("headers of {id}: {e}");
+                    None
+                }
+            },
+            None => None,
+        };
+        Ok(privacy::report(
+            html.as_deref(),
+            &text,
+            headers.as_deref(),
+            &m.from.addr,
+            &me,
+        ))
     }
 
     /// Messages grouped by folder: (folder, account email, rows).
