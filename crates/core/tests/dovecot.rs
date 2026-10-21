@@ -125,9 +125,34 @@ async fn full_cycle_against_dovecot() {
         db.attachments(pdf).unwrap()[0].filename,
         "fattura-ottobre.pdf"
     );
+    // headers kept with the body, and the server gives them alone (privacy
+    // report for bodies stored before headers were kept), without the PDF
+    // and without marking the message read
+    let m = db.message(pdf).unwrap();
+    let stored = db.body_headers(pdf).unwrap().flatten().unwrap();
+    assert!(stored.contains("Subject:"), "{stored}");
+    let header = sync::fetch_raw(&mut c, &inbox.name, m.uid, true)
+        .await
+        .unwrap()
+        .unwrap();
+    let whole = sync::fetch_raw(&mut c, &inbox.name, m.uid, false)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        header.len() < whole.len() / 2,
+        "{} of {}",
+        header.len(),
+        whole.len()
+    );
+    assert_eq!(
+        lettera_core::privacy::header_block(&header),
+        lettera_core::privacy::header_block(&whole)
+    );
+    sync::sync_folder(&mut c, &db, &inbox, &none).await.unwrap();
+    assert!(!db.message(pdf).unwrap().flags.contains("\\Seen"));
 
     // flags
-    let m = db.message(pdf).unwrap();
     sync::store_flags(
         &mut c,
         &inbox.name,

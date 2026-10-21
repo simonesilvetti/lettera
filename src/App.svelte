@@ -178,11 +178,14 @@
     transform: translate(-50%, -50%);
   }
 
+  /* never reaches the centred logo: the address gives way first */
   .right {
     display: flex;
+    justify-content: flex-end;
     gap: 16px;
     align-items: baseline;
     min-width: 0;
+    max-width: calc(50% - 80px);
   }
 
   .protection {

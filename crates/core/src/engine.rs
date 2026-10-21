@@ -87,6 +87,8 @@ enum Action {
     Raw {
         folder: String,
         uid: u32,
+        /// Only the header block (the privacy report), not the whole message.
+        header_only: bool,
         reply: oneshot::Sender<Result<Option<Vec<u8>>>>,
     },
 }
@@ -653,8 +655,13 @@ impl Inner {
                     .map(|f| f.id)
                     .collect())
             }
-            Action::Raw { folder, uid, .. } => {
-                let raw = sync::fetch_raw(c, folder, *uid).await?;
+            Action::Raw {
+                folder,
+                uid,
+                header_only,
+                ..
+            } => {
+                let raw = sync::fetch_raw(c, folder, *uid, *header_only).await?;
                 if let Some(Action::Raw { reply, .. }) = a.take() {
                     let _ = reply.send(Ok(raw));
                 }
@@ -1328,17 +1335,19 @@ impl Engine {
             .ok_or_else(|| Error::NotFound("the message is still downloading".into()))?;
         let headers = match self.inner.db.body_headers(id)?.flatten() {
             Some(h) => Some(h),
-            None if m.uid < crate::db::LOCAL_UID_BASE => match self.raw_message(&m).await {
-                Ok(raw) => {
-                    let h = privacy::header_block(&raw);
-                    self.inner.db.set_body_headers(id, &h)?;
-                    Some(h)
+            None if m.uid < crate::db::LOCAL_UID_BASE => {
+                match self.fetch_from_server(&m, true).await {
+                    Ok(raw) => {
+                        let h = privacy::header_block(&raw);
+                        self.inner.db.set_body_headers(id, &h)?;
+                        Some(h)
+                    }
+                    Err(e) => {
+                        tracing::warn!("headers of {id}: {e}");
+                        None
+                    }
                 }
-                Err(e) => {
-                    tracing::warn!("headers of {id}: {e}");
-                    None
-                }
-            },
+            }
             None => None,
         };
         Ok(privacy::report(
@@ -1553,6 +1562,11 @@ impl Engine {
     }
 
     async fn raw_message(&self, m: &MessageRow) -> Result<Vec<u8>> {
+        self.fetch_from_server(m, false).await
+    }
+
+    /// The message from the server, whole or (`header_only`) just its headers.
+    async fn fetch_from_server(&self, m: &MessageRow, header_only: bool) -> Result<Vec<u8>> {
         let folder = self.inner.db.folder(m.folder_id)?;
         let email = self.inner.db.account_email(m.account_id)?;
         let (tx, rx) = oneshot::channel();
@@ -1561,6 +1575,7 @@ impl Engine {
             Action::Raw {
                 folder: folder.name,
                 uid: m.uid,
+                header_only,
                 reply: tx,
             },
         )?;

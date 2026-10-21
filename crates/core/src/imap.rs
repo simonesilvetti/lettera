@@ -61,6 +61,11 @@ pub trait ImapClient: Send {
         &mut self,
         uid_set: &str,
     ) -> impl Future<Output = Result<Vec<(u32, Vec<u8>)>>> + Send;
+    /// Only the header block for each UID in the set.
+    fn fetch_header(
+        &mut self,
+        uid_set: &str,
+    ) -> impl Future<Output = Result<Vec<(u32, Vec<u8>)>>> + Send;
     fn store(
         &mut self,
         uid_set: &str,
@@ -473,6 +478,19 @@ impl ImapClient for RealImap {
         Ok(fetches
             .iter()
             .filter_map(|f| Some((f.uid?, f.body()?.to_vec())))
+            .collect())
+    }
+
+    async fn fetch_header(&mut self, uid_set: &str) -> Result<Vec<(u32, Vec<u8>)>> {
+        let fetches: Vec<Fetch> = self
+            .session
+            .uid_fetch(uid_set, "(UID BODY.PEEK[HEADER])")
+            .await?
+            .try_collect()
+            .await?;
+        Ok(fetches
+            .iter()
+            .filter_map(|f| Some((f.uid?, f.header()?.to_vec())))
             .collect())
     }
 

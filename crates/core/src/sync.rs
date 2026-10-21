@@ -265,14 +265,20 @@ pub async fn fetch_bodies<C: ImapClient>(
 }
 
 /// Raw bytes of one message (for bodies on demand and attachments).
+/// The message `uid` of `folder`, whole or (`header_only`) just its headers.
 pub async fn fetch_raw<C: ImapClient>(
     c: &mut C,
     folder: &str,
     uid: u32,
+    header_only: bool,
 ) -> Result<Option<Vec<u8>>> {
     ensure_selected(c, folder).await?;
-    Ok(c.fetch_raw(&uid.to_string())
-        .await?
+    let fetched = if header_only {
+        c.fetch_header(&uid.to_string()).await?
+    } else {
+        c.fetch_raw(&uid.to_string()).await?
+    };
+    Ok(fetched
         .into_iter()
         .find(|(u, _)| *u == uid)
         .map(|(_, raw)| raw))

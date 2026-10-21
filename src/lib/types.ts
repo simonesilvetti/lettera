@@ -101,13 +101,16 @@ export interface PrivacyReport {
   generic_images: HostCount[];
   links: {
     total: number;
-    /** with tracking parameters */
+    /** with a code for the reader or the click */
     personal: number;
+    /** with campaign tags only (utm_*…) */
+    campaign: number;
     /** through a redirect whose destination is in the clear */
     redirects: number;
     /** through an opaque click counter */
     counters: number;
     params: string[];
+    campaign_params: string[];
     counter_hosts: HostCount[];
   };
   /** null when the headers could not be read */

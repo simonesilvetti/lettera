@@ -2,7 +2,16 @@
   // The privacy report of a message (`t`): what in it can track the reader.
   import type { HostCount, PrivacyReport } from './lib/types';
 
-  let { report, protection }: { report: PrivacyReport | null; protection: boolean } = $props();
+  let {
+    report,
+    protection,
+    images,
+  }: {
+    report: PrivacyReport | null;
+    protection: boolean;
+    /** what the original html loads right now (undefined in reading mode) */
+    images: 'blocked' | 'safe' | 'all' | undefined;
+  } = $props();
 
   const sum = (list: HostCount[]) => list.reduce((n, h) => n + h.count, 0);
   const hosts = (list: HostCount[]) => list.map((h) => h.host).join(', ');
@@ -26,7 +35,8 @@
           ? 'the links would identify you, they open without tracking'
           : 'the links identify you if you click them',
       );
-    } else if (l.total) parts.push('the links carry no tracking');
+    } else if (l.campaign) parts.push('the links only say which campaign you came from');
+    else if (l.total) parts.push('the links carry no tracking');
     const s = parts.join('; ');
     return s.charAt(0).toUpperCase() + s.slice(1) + '.';
   });
@@ -50,7 +60,9 @@
         {#if personal}
           <span>
             {personal} with a code for you <span class="muted">{hosts(report.personal_images)}</span>
-            <span class="muted">· {protection ? 'blocked, M loads them' : 'loaded by m'}</span>
+            <span class="muted">
+              · {images === 'all' ? 'loaded' : protection ? 'not loaded by m, M loads them' : 'm loads them'}
+            </span>
           </span>
         {/if}
         {#if pixels}
@@ -74,6 +86,14 @@
               </span>
             {/if}
           </span>
+          {#if report.links.campaign}
+            <span>
+              {report.links.campaign} with campaign tags only
+              <span class="muted">
+                {report.links.campaign_params.join(', ')} · {protection ? 'removed when you click' : 'kept, protection is off'}
+              </span>
+            </span>
+          {/if}
           {#if report.links.counters}
             <span>
               {report.links.counters} through a click counter

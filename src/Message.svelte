@@ -103,7 +103,11 @@
     </p>
 
     {#if app.reportOpen[message.id]}
-      <Report report={app.reports[message.id] ?? null} protection={app.protection} />
+      <Report
+        report={app.reports[message.id] ?? null}
+        protection={app.protection}
+        images={html ? body?.images : undefined}
+      />
     {/if}
 
     {#if !body || !body.ready}

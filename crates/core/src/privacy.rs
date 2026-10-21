@@ -8,7 +8,7 @@
 //! contains a raw `<`. That regular shape is what lets [`tags`] read it
 //! without a full parser.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::Serialize;
 use url::Url;
@@ -349,24 +349,37 @@ pub fn classify_image(
     style: Option<&str>,
     me: &str,
 ) -> ImageKind {
+    classify(src, width, height, style, me, &HashSet::new())
+}
+
+/// [`classify_image`], ignoring the query parameters in `varying`: those
+/// whose value changes from one image of the message to the next name the
+/// image, not the recipient (a code for the recipient is the same in all).
+pub fn classify(
+    src: &str,
+    width: Option<&str>,
+    height: Option<&str>,
+    style: Option<&str>,
+    me: &str,
+    varying: &HashSet<String>,
+) -> ImageKind {
     let (sw, sh, hidden) = style.map(style_box).unwrap_or((None, None, false));
     let w = width.and_then(number).or(sw);
     let h = height.and_then(number).or(sh);
-    let tiny = matches!((w, h), (Some(w), Some(h)) if w <= 1 && h <= 1);
+    let tiny = matches!((w, h), (Some(w), Some(h)) if w <= 3 && h <= 3);
     let zero = w == Some(0) || h == Some(0);
     let large = w.is_some_and(|w| w > 3) || h.is_some_and(|h| h > 3);
-    if hidden || tiny || zero || (!large && tracker_url(src)) {
+    // a large image hidden by its style is a variant for other screens (shown
+    // by a media query that sanitizing dropped), not a pixel; a tiny one with
+    // a plain address (`spacer.gif`) is layout, the same for everyone
+    let invisible = (hidden && !large) || tiny || zero;
+    if (invisible && unique_address(src)) || (!large && tracker_url(src)) {
         return ImageKind::Pixel;
     }
-    let full = if src.trim_start().starts_with("//") {
-        format!("https:{}", src.trim())
-    } else {
-        src.trim().to_string()
-    };
-    let personal_query = Url::parse(&full).is_ok_and(|u| {
-        query_pairs(&u)
-            .iter()
-            .any(|(k, v)| identity_param(k) && v.len() >= 6)
+    let personal_query = parse_src(src).is_some_and(|u| {
+        query_pairs(&u).iter().any(|(k, v)| {
+            identity_param(k) && v.len() >= 6 && !varying.contains(&k.to_ascii_lowercase())
+        })
     });
     if personal_query || names_me(src, me) {
         ImageKind::Personal
@@ -375,21 +388,79 @@ pub fn classify_image(
     }
 }
 
+/// The address can tell one recipient or message from another: a query, a
+/// long token in the path, or numeric codes in it.
+fn unique_address(src: &str) -> bool {
+    let Some(u) = parse_src(src) else {
+        return true;
+    };
+    u.query().is_some_and(|q| !q.is_empty())
+        || u.path().chars().filter(char::is_ascii_digit).count() >= 10
+        || u.path().split('/').any(|seg| {
+            let stem = seg.split('.').next().unwrap_or("");
+            stem.len() >= 16
+        })
+}
+
+fn parse_src(src: &str) -> Option<Url> {
+    let s = src.trim();
+    if s.starts_with("//") {
+        Url::parse(&format!("https:{s}")).ok()
+    } else {
+        Url::parse(s).ok()
+    }
+}
+
+/// Query parameters with a different value in different images of the document.
+pub fn varying_params(html: &str) -> HashSet<String> {
+    let mut seen: HashMap<String, String> = HashMap::new();
+    let mut varying = HashSet::new();
+    for t in tags(html) {
+        if !t.name.eq_ignore_ascii_case("img") {
+            continue;
+        }
+        let Some(u) = t.get("src").and_then(parse_src) else {
+            continue;
+        };
+        for (k, v) in query_pairs(&u) {
+            let k = k.to_ascii_lowercase();
+            match seen.get(&k) {
+                Some(old) if *old != v => {
+                    varying.insert(k);
+                }
+                Some(_) => {}
+                None => {
+                    seen.insert(k, v);
+                }
+            }
+        }
+    }
+    varying
+}
+
 /// Every remote image of the document (and remote CSS backgrounds), with its
 /// kind and host.
 pub fn images(html: &str, me: &str) -> Vec<(ImageKind, String)> {
+    let varying = varying_params(html);
     let mut out = Vec::new();
     for t in tags(html) {
         if t.name.eq_ignore_ascii_case("img") {
             if let Some(src) = t.get("src").filter(|s| is_remote(s)) {
-                let kind = classify_image(src, t.get("width"), t.get("height"), t.get("style"), me);
+                let kind = classify(
+                    src,
+                    t.get("width"),
+                    t.get("height"),
+                    t.get("style"),
+                    me,
+                    &varying,
+                );
                 out.push((kind, host_of(src)));
             }
         }
         if let Some(style) = t.get("style") {
             for u in css_urls(style) {
                 if is_remote(&u) {
-                    out.push((classify_image(&u, None, None, None, me), host_of(&u)));
+                    out.push((classify(&u, None, None, None, me, &varying), host_of(&u)));
                 }
             }
         }
@@ -431,6 +502,7 @@ fn css_url_spans(style: &str) -> Vec<(usize, usize, String)> {
 /// remote images were held back (pixels apart) and how many pixels were
 /// removed.
 pub fn filter_html(html: &str, images: Images, me: &str) -> (String, usize, usize) {
+    let varying = varying_params(html);
     let mut out = String::with_capacity(html.len());
     let mut last = 0;
     let mut blocked = 0;
@@ -450,7 +522,14 @@ pub fn filter_html(html: &str, images: Images, me: &str) -> (String, usize, usiz
             if src.trim_start().starts_with("data:") {
                 // inline: loads nothing
             } else if is_remote(src) {
-                let kind = classify_image(src, t.get("width"), t.get("height"), t.get("style"), me);
+                let kind = classify(
+                    src,
+                    t.get("width"),
+                    t.get("height"),
+                    t.get("style"),
+                    me,
+                    &varying,
+                );
                 if kind == ImageKind::Pixel {
                     pixels += 1;
                     out.push_str(&html[last..t.span.0]);
@@ -474,7 +553,7 @@ pub fn filter_html(html: &str, images: Images, me: &str) -> (String, usize, usiz
                 for (s, e, u) in spans {
                     style.push_str(&a.value[at..s]);
                     let keep = u.to_ascii_lowercase().starts_with("data:")
-                        || (is_remote(&u) && allows(classify_image(&u, None, None, None, me)));
+                        || (is_remote(&u) && allows(classify(&u, None, None, None, me, &varying)));
                     if keep {
                         style.push_str(&a.value[s..e]);
                     } else {
@@ -565,6 +644,15 @@ fn tracking_param(host: &str, name: &str) -> bool {
         || ["utm_", "trk", "pk_", "mtm_", "__hs"]
             .iter()
             .any(|p| n.starts_with(p))
+}
+
+/// Tracking parameters that name a campaign, the same for every recipient.
+/// LinkedIn's `trkEmail` and `lipi` carry a code for the message, so they
+/// are not among them.
+fn campaign_param(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    ["utm_", "pk_", "mtm_"].iter().any(|p| n.starts_with(p))
+        || ["trk", "trkcampaign", "mc_cid", "sc_cid", "ref_src"].contains(&n.as_str())
 }
 
 /// Links that need their codes to work: left exactly as they are.
@@ -953,14 +1041,19 @@ pub struct HostCount {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct LinkSummary {
     pub total: usize,
-    /// With tracking parameters (taken out when protection is on).
+    /// With a code for the reader or the click (taken out when protection is on).
     pub personal: usize,
+    /// With campaign tags only (`utm_*`…): they say where the click came
+    /// from, not who made it.
+    pub campaign: usize,
     /// Through a redirect whose destination is in the clear.
     pub redirects: usize,
     /// Through an opaque click counter.
     pub counters: usize,
-    /// Names of the tracking parameters found.
+    /// Names of the personal parameters found.
     pub params: Vec<String>,
+    /// Names of the campaign tags found.
+    pub campaign_params: Vec<String>,
     pub counter_hosts: Vec<HostCount>,
 }
 
@@ -1011,12 +1104,21 @@ pub fn report(
         if c.unwrapped {
             links_sum.redirects += 1;
         }
-        if !c.removed.is_empty() {
+        let (camp, pers): (Vec<String>, Vec<String>) =
+            c.removed.into_iter().partition(|p| campaign_param(p));
+        if !pers.is_empty() {
             links_sum.personal += 1;
-            for p in c.removed {
-                if !params.contains(&p) {
-                    params.push(p);
-                }
+        } else if !camp.is_empty() {
+            links_sum.campaign += 1;
+        }
+        for p in pers {
+            if !params.contains(&p) {
+                params.push(p);
+            }
+        }
+        for p in camp {
+            if !links_sum.campaign_params.contains(&p) {
+                links_sum.campaign_params.push(p);
             }
         }
         if !c.unwrapped && is_counter(&c.url) {
@@ -1044,34 +1146,49 @@ mod tests {
     #[test]
     fn pixels_by_size_style_or_address() {
         let k = |src, w, h, s| classify_image(src, w, h, s, ME);
+        let pixel = ImageKind::Pixel;
         assert_eq!(
-            k("https://t.example/a.gif", Some("1"), Some("1"), None),
-            ImageKind::Pixel
+            k("https://t.example/o?u=8f3a91c2", Some("1"), Some("1"), None),
+            pixel
         );
         assert_eq!(
-            k("https://t.example/a.gif", None, None, Some("display:none")),
-            ImageKind::Pixel
+            k("https://t.example/a.gif?id=1", Some("0"), None, None),
+            pixel
         );
-        assert_eq!(
-            k("https://t.example/a.gif", Some("0"), None, None),
-            ImageKind::Pixel
-        );
+        let hidden = "https://t.example/mk/op/Qw3rTy8uIo9pAs7dFg6h/qcgh";
+        assert_eq!(k(hidden, None, None, Some("display:none")), pixel);
+        // numeric codes in the path
+        let numeric = "https://t.example/ab12cd/41234567/10123456/1234567890.gif";
+        assert_eq!(k(numeric, Some("1"), Some("1"), None), pixel);
         assert_eq!(
             k("https://x.sendgrid.net/wf/open?upn=abc", None, None, None),
-            ImageKind::Pixel
+            pixel
         );
+        assert_eq!(k("https://x.example/open.gif", None, None, None), pixel);
+        // 3×1 with a code
         assert_eq!(
-            k("https://x.example/open.gif", None, None, None),
-            ImageKind::Pixel
+            k(
+                "https://x.example/s.gif?mid=abc123",
+                Some("3"),
+                Some("1"),
+                None
+            ),
+            pixel
         );
+        // invisible but with a plain address: a layout spacer, the same for everyone
+        let spacer = "https://www.gstatic.com/gumdrop/files/spacer-11.gif";
+        assert_eq!(k(spacer, Some("1"), Some("3"), None), ImageKind::Generic);
         // an image named "open" but drawn large is a real image
-        assert_eq!(
-            k("https://x.example/open.png", Some("120"), Some("40"), None),
-            ImageKind::Generic
-        );
+        let open = "https://x.example/open.png";
+        assert_eq!(k(open, Some("120"), Some("40"), None), ImageKind::Generic);
         // a spacer as wide as the layout is not a pixel
+        let wide = "https://x.example/s.gif";
+        assert_eq!(k(wide, Some("600"), Some("1"), None), ImageKind::Generic);
+        // a large image hidden for this screen size is a variant, not a pixel
+        let variant = "https://x.example/photo.jpg";
+        let style = Some("display: none; height: 252px");
         assert_eq!(
-            k("https://x.example/s.gif", Some("600"), Some("1"), None),
+            k(variant, Some("448"), Some("252"), style),
             ImageKind::Generic
         );
     }
@@ -1103,6 +1220,23 @@ mod tests {
     }
 
     #[test]
+    fn a_parameter_that_changes_between_images_names_the_image() {
+        // newsletter images whose ?u= is each image's own id
+        let html = "<img src=\"https://img.example/a?u=Ab12Cd34Ef56Gh78\" width=\"600\">\
+<img src=\"https://img.example/a?u=Ab12Cd34Ef56Zz90\" width=\"300\">";
+        assert!(images(html, ME)
+            .iter()
+            .all(|(k, _)| *k == ImageKind::Generic));
+        assert_eq!(filter_html(html, Images::Safe, ME).1, 0);
+        // the same code in every image is the recipient's
+        let html = "<img src=\"https://img.example/a.png?uid=8f3a91c2\" width=\"600\">\
+<img src=\"https://img.example/b.png?uid=8f3a91c2\" width=\"300\">";
+        assert!(images(html, ME)
+            .iter()
+            .all(|(k, _)| *k == ImageKind::Personal));
+    }
+
+    #[test]
     fn base64_matches_the_standard() {
         assert_eq!(base64("me@example.org"), "bWVAZXhhbXBsZS5vcmc");
         assert_eq!(base64("ab"), "YWI");
@@ -1110,7 +1244,7 @@ mod tests {
 
     #[test]
     fn filter_removes_pixels_and_holds_back_images() {
-        let html = "<p>hi</p><img src=\"https://t.example/p.gif\" width=\"1\" height=\"1\">\
+        let html = "<p>hi</p><img src=\"https://t.example/p.gif?r=91c2\" width=\"1\" height=\"1\">\
 <img src=\"https://cdn.example/logo.png\" alt=\"logo\" width=\"100\">\
 <img src=\"https://cdn.example/me.png?uid=12345678\" width=\"50\">\
 <div style=\"background:url(https://cdn.example/bg.png)\">x</div>";
@@ -1237,10 +1371,10 @@ mod tests {
 
     #[test]
     fn report_counts() {
-        let html = "<img src=\"https://t.example/p.gif\" width=\"1\" height=\"1\">\
+        let html = "<img src=\"https://t.example/p.gif?r=91c2\" width=\"1\" height=\"1\">\
 <img src=\"https://cdn.example/logo.png\" width=\"100\">\
 <a href=\"https://shop.example/?utm_source=x\">a</a><a href=\"https://click.shop.example/q\">b</a>\
-<a href=\"mailto:x@y\">c</a>";
+<a href=\"https://shop.example/p?mc_eid=91c2&amp;utm_medium=email\">d</a><a href=\"mailto:x@y\">c</a>";
         let r = report(Some(html), "", None, "n@shop.example", ME);
         assert_eq!(
             r.pixels,
@@ -1250,11 +1384,10 @@ mod tests {
             }]
         );
         assert_eq!(r.generic_images.len(), 1);
-        assert_eq!(
-            (r.links.total, r.links.personal, r.links.counters),
-            (2, 1, 1)
-        );
-        assert_eq!(r.links.params, ["utm_source"]);
+        let l = &r.links;
+        assert_eq!((l.total, l.personal, l.campaign, l.counters), (3, 1, 1, 1));
+        assert_eq!(l.params, ["mc_eid"]);
+        assert_eq!(l.campaign_params, ["utm_source", "utm_medium"]);
         assert!(r.sent_via.is_none());
     }
 }

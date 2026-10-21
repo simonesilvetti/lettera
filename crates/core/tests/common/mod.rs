@@ -192,6 +192,23 @@ impl ImapClient for MockImap {
             .collect())
     }
 
+    async fn fetch_header(&mut self, uid_set: &str) -> Result<Vec<(u32, Vec<u8>)>> {
+        self.log.push(format!("FETCH HEADER {uid_set}"));
+        let uids = self.uids(uid_set);
+        let f = self.current();
+        Ok(uids
+            .into_iter()
+            .map(|u| {
+                let raw = &f.messages[&u].1;
+                let end = raw
+                    .windows(4)
+                    .position(|w| w == b"\r\n\r\n")
+                    .map_or(raw.len(), |e| e + 4);
+                (u, raw[..end].to_vec())
+            })
+            .collect())
+    }
+
     async fn store(&mut self, uid_set: &str, add: bool, flags: &str) -> Result<()> {
         self.log.push(format!(
             "STORE {uid_set} {} {flags}",
